@@ -86,10 +86,14 @@ class DataYouEngine(
         val focus = focusTracker()
         updateBadge(focus, now)
 
-        val stopCard = if (justStopped && focus.level != GaugeLevel.COMFORT) {
-            focus.topActionableCause()?.let { StopCard(focus.profile, focus.level, it, recorder.countSinceLastStop(it)) }
-                ?: if (patterns.inTraffic) StopCard(focus.profile, focus.level, Cause.STOP_AND_GO, 0) else null
+        // 정차 카드: 정체 중이면 '운전자 탓 아님' 안내, 아니면 고칠 수 있는 원인 1위를 코칭.
+        // 같은 내용을 신호마다 반복하지 않도록 카드 사이 최소 간격을 둔다.
+        val cardCooled = lastCardMs?.let { (now - it) / 1000.0 >= config.stopCardCooldownSec } ?: true
+        val stopCard = if (justStopped && cardCooled && focus.level != GaugeLevel.COMFORT) {
+            if (patterns.inTraffic) StopCard(focus.profile, focus.level, Cause.STOP_AND_GO, 0)
+            else focus.topActionableCause()?.let { StopCard(focus.profile, focus.level, it, recorder.countSinceLastStop(it)) }
         } else null
+        if (stopCard != null) lastCardMs = now
         if (justStopped) recorder.markStop()
         justStopped = false
 
@@ -127,6 +131,7 @@ class DataYouEngine(
     // ── 내부 ─────────────────────────────────────────
 
     private var justStopped = false
+    private var lastCardMs: Long? = null
 
     private fun updateStopped(speed: Double, now: Long) {
         if (speed < config.stoppedSpeedMps) {

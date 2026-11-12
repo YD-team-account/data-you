@@ -38,6 +38,13 @@ fun main(args: Array<String>) {
                 println("| `$n` | %.0f | $causes | ${r.topImprovement?.coaching ?: "-"} |".format(r.passengers.maxOf { it.peakGauge }))
             }
         }
+        "timeline" -> {
+            // 인터랙티브 프로토타입용 JSON (docs/prototype)
+            val out = File(args.getOrNull(1) ?: "docs/prototype/timeline.json")
+            val names = listOf("family_trip", "mountain_curves", "city_aggressive", "ev_strong_regen", "traffic_stop_and_go", "brake_pumping")
+            TimelineExport.write(out, names)
+            println("${out.path} 저장 (${out.length() / 1024}KB)")
+        }
         "export" -> {
             val dir = File(args.getOrNull(1) ?: "sample-data")
             Scenarios.all.forEach { (n, g) -> Csv.write(File(dir, "$n.csv"), g()) }

@@ -55,8 +55,12 @@ class PatternDetector(private val config: EngineConfig) {
         }
         trim(stops, now, config.stopAndGoWindowSec) { it }
         // 정체 = 짧은 간격의 정지 반복 + 그 사이 최고속도가 낮음 (신호등 사이를 빠르게 달리는 시내 주행과 구분)
-        val maxRecentSpeed = speedHistory.maxOf { it.second }
-        inTraffic = stops.size >= config.stopAndGoMinStops && maxRecentSpeed <= config.stopAndGoMaxSpeedMps
+        // 최고속도는 '최근 N번의 정지가 시작된 시점부터' 구간에서만 본다. (앞선 고속 주행이 판정을 늦추지 않게)
+        inTraffic = if (stops.size >= config.stopAndGoMinStops) {
+            val from = stops.elementAt(stops.size - config.stopAndGoMinStops)
+            val maxSince = speedHistory.filter { it.first >= from }.maxOfOrNull { it.second } ?: 0.0
+            maxSince <= config.stopAndGoMaxSpeedMps
+        } else false
 
         // 좌우 가속 부호 전환
         if (abs(f.latAccel) >= config.curvesMinLatAccel) {

@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>다타유 인터랙티브 프로토타입</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+/* 한 가지 세계(야간 차량 디스플레이)로 고정한 단일 테마.
+   레이아웃: 위 = 실제 화면 크기 비율(8:3)의 차량 디스플레이, 아래 = 시연 조작판 + 엔진 로그 */
+:root {
+  --bg: #0B1015;
+  --panel: #141B23;
+  --surface: #1A2129;
+  --surface-2: #232C36;
+  --line: #2C3743;
+  --text: #F2F4F6;
+  --muted: #A9B4C0;
+  --faint: #8794A1;
+  --comfort: #3CC4A0;
+  --caution: #F2B33D;
+  --discomfort: #FF7A59;
+  --moment: #FF9B80;
+  --situation: #A9B4C0;
+  --route: #3D8BFF;
+  --link: #7CC4FF;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-body); }
+body { min-height: 100%; }
+button, select, input { font: inherit; color: inherit; }
+button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
+a { color: var(--link); }
+h1, h2, h3 { text-wrap: balance; }
+
+.page { max-width: 1320px; margin: 0 auto; padding: 24px 20px 48px; display: flex; flex-direction: column; gap: 20px; }
+.head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; }
+.head h1 { margin: 0; font-size: 26px; font-weight: 600; }
+.head p { margin: 4px 0 0; color: var(--muted); font-size: 15px; max-width: 70ch; line-height: 1.6; }
+.tag { font-size: 13px; color: var(--comfort); font-weight: 500; letter-spacing: 0.02em; }
+
+/* ── 차량 디스플레이 (1280×480 기준, 비율 유지 축소) ── */
+.screen-wrap { width: 100%; aspect-ratio: 8 / 3; position: relative; border-radius: 22px; overflow: hidden; background: #121820; border: 1px solid var(--line); container-type: inline-size; }
+.screen { position: absolute; inset: 0; }
+.cq { font-size: calc(100cqw / 1280 * 16); } /* 1em = 기준 화면의 16px */
+
+/* 지도 */
+.map { position: absolute; inset: 0; }
+.map svg { width: 100%; height: 100%; display: block; }
+.tbt { position: absolute; left: 1.5em; top: 1.5em; display: flex; align-items: center; gap: 1em; background: #1C2530; border-radius: 1em; padding: 0.85em 1.4em; border: 2px solid transparent; transition: border-color .3s; }
+.tbt.pre { border-color: var(--caution); }
+.tbt .dist { font-size: 1.75em; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.tbt .road { font-size: 0.95em; color: var(--muted); }
+.speed { position: absolute; left: 1.5em; bottom: 1.5em; display: flex; align-items: baseline; gap: .4em; background: #1C2530; border-radius: .9em; padding: .6em 1.1em; }
+.speed b { font-size: 1.9em; font-weight: 600; font-variant-numeric: tabular-nums; }
+.speed span { font-size: .9em; color: var(--muted); }
+.stopped-pill { position: absolute; left: 1.5em; top: 1.5em; display: none; align-items: center; gap: .6em; background: #1C2530; border-radius: .8em; padding: .6em 1em; font-size: 1em; color: #C9D2DB; }
+.stopped-pill i { width: .6em; height: .6em; border-radius: 50%; background: var(--discomfort); display: block; }
+
+/* 다타유 칩 (주행 중 유일한 표시) */
+.chip { position: absolute; right: 1.5em; bottom: 1.5em; display: flex; align-items: center; gap: .6em; background: #1C2530; border: 1px solid #34404D; border-radius: 999px; padding: .5em .9em .5em .5em; transition: opacity .4s, transform .4s; }
+.chip.hidden { opacity: 0; transform: translateY(.6em); pointer-events: none; }
+.avatar { width: 4em; height: 4em; border-radius: 50%; border: .32em solid var(--caution); background: #26313D; display: flex; align-items: center; justify-content: center; transition: border-color .4s; }
+.avatar svg { width: 2.5em; height: 2.5em; }
+.chip.pulse .avatar { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(242,179,61,.0); } 50% { box-shadow: 0 0 0 .5em rgba(242,179,61,.35); } }
+.badge { width: 2.75em; height: 2.75em; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--moment); }
+.badge svg { width: 1.6em; height: 1.6em; }
+
+/* 정차 카드 */
+.card { position: absolute; right: 2.5em; top: 2.5em; bottom: 2.5em; width: 47.5em; background: var(--surface); border: 1px solid #2E3945; border-radius: 1.75em; padding: 2em 2.25em; display: none; gap: 2em; align-items: center; }
+.card.show { display: flex; animation: rise .35s ease-out; }
+@keyframes rise { from { transform: translateY(1em); opacity: .4; } to { transform: none; opacity: 1; } }
+.card .big { width: 10.5em; height: 10.5em; border-radius: 50%; border: .5em solid var(--caution); background: #26313D; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.card .big svg { width: 6.8em; height: 6.8em; }
+.card h2 { margin: 0; font-size: 2em; font-weight: 600; line-height: 1.3; }
+.card .cause { display: flex; align-items: center; gap: .75em; margin-top: .9em; font-size: 1.25em; font-weight: 500; }
+.card .cause .badge { width: 2.2em; height: 2.2em; }
+.card .cause .badge svg { width: 1.3em; height: 1.3em; }
+.card p { margin: .9em 0 0; font-size: 1.35em; line-height: 1.5; color: #DCE3EA; }
+.card .tts { margin-top: .9em; display: flex; gap: .5em; align-items: center; color: var(--link); font-size: .95em; }
+.card .fb { display: flex; gap: .75em; margin-top: 1.1em; }
+.card .fb button { min-height: 3.25em; padding: 0 1.4em; border-radius: .9em; border: none; background: var(--surface-2); font-size: 1.05em; cursor: pointer; }
+.card .fb button.warn { background: #3A2A24; color: #FFC2B0; }
+.card .fb-note { font-size: .82em; color: var(--faint); margin-top: .5em; }
+
+/* 출발 / 리포트 오버레이 */
+.overlay { position: absolute; inset: 0; background: #121820; padding: 2.25em 2.5em; display: none; flex-direction: column; gap: 1.5em; }
+.overlay.show { display: flex; }
+.overlay h2 { margin: 0; font-size: 2.1em; font-weight: 600; }
+.overlay .sub { margin: .3em 0 0; font-size: 1.05em; color: var(--muted); }
+.people { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1em; flex: 1; }
+.person { position: relative; text-align: left; border-radius: 1.25em; padding: 1.25em; display: flex; flex-direction: column; gap: .8em; background: var(--surface); border: 2px solid #2A3440; cursor: pointer; }
+.person[aria-pressed="true"] { background: #1E2C2A; border-color: var(--comfort); }
+.person .face { width: 4em; height: 4em; border-radius: 50%; background: #26313D; display: flex; align-items: center; justify-content: center; }
+.person .face svg { width: 2.5em; height: 2.5em; }
+.person b { font-size: 1.4em; font-weight: 600; }
+.person span { font-size: .95em; line-height: 1.5; color: var(--muted); }
+.person .check { position: absolute; right: 1em; top: 1em; width: 1.75em; height: 1.75em; border-radius: 50%; background: var(--comfort); display: none; align-items: center; justify-content: center; }
+.person[aria-pressed="true"] .check { display: flex; }
+.start-row { display: flex; justify-content: space-between; align-items: center; gap: 1em; }
+.start-row span { font-size: .95em; color: var(--muted); }
+.go { border: none; background: var(--comfort); color: #0B2A22; font-size: 1.2em; font-weight: 600; padding: .85em 2.2em; border-radius: .9em; cursor: pointer; }
+.go:disabled { opacity: .5; cursor: not-allowed; }
+
+.report-grid { display: grid; grid-template-columns: 18em minmax(0, 1fr) 20em; gap: 1.25em; flex: 1; min-height: 0; }
+.rbox { background: var(--surface); border-radius: 1.25em; padding: 1.4em; display: flex; flex-direction: column; gap: .9em; min-height: 0; }
+.rbox h3 { margin: 0; font-size: 1.15em; font-weight: 600; }
+.rp { display: flex; align-items: center; gap: .8em; }
+.rp .face { width: 3.5em; height: 3.5em; border-radius: 50%; border: .3em solid var(--caution); background: #26313D; display: flex; align-items: center; justify-content: center; }
+.rp .face svg { width: 2.2em; height: 2.2em; }
+.rp b { font-size: 1.15em; }
+.rp small { display: block; color: var(--muted); font-size: .85em; }
+.lvbar { display: flex; height: .8em; border-radius: .5em; overflow: hidden; background: #26313D; }
+.lvbar i { display: block; height: 100%; }
+.share-row { display: flex; flex-direction: column; gap: .35em; }
+.share-row .lab { display: flex; justify-content: space-between; font-size: 1em; }
+.share-row .bar { height: .7em; border-radius: .4em; background: #26313D; overflow: hidden; }
+.share-row .bar i { display: block; height: 100%; }
+.big-num { font-size: 2.2em; font-weight: 600; font-variant-numeric: tabular-nums; }
+.r-note { font-size: .85em; color: var(--faint); line-height: 1.5; }
+.again { align-self: flex-start; border: 1px solid var(--line); background: var(--surface-2); padding: .6em 1.2em; border-radius: .8em; cursor: pointer; font-size: 1em; }
+
+/* ── 조작판 ── */
+.controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+.field { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+select { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; min-height: 40px; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 8px 14px; min-height: 40px; cursor: pointer; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; }
+.btn.primary { background: var(--comfort); color: #0B2A22; border-color: var(--comfort); font-weight: 600; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg button { border: none; background: var(--surface); padding: 8px 12px; min-height: 40px; cursor: pointer; font-size: 14px; }
+.seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--text); box-shadow: inset 0 -2px 0 var(--comfort); }
+.time { font-family: var(--font-mono); font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 110px; }
+.scrub { position: relative; height: 76px; }
+.scrub canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.scrub input { position: absolute; left: 0; right: 0; bottom: -2px; width: 100%; margin: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+
+.lower { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.panel h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.log { font-family: var(--font-mono); font-size: 13px; line-height: 1.7; height: 220px; overflow-y: auto; color: #C9D2DB; margin: 0; padding: 0; list-style: none; }
+.log li { display: flex; gap: 12px; }
+.log time { color: var(--faint); min-width: 54px; text-align: right; }
+.log .snd { color: var(--caution); }
+.log .card-l { color: var(--link); }
+.log .sit { color: var(--muted); }
+.how { font-size: 14px; color: var(--muted); line-height: 1.7; margin: 0; padding-left: 18px; }
+.how b { color: var(--text); font-weight: 500; }
+
+@media (max-width: 860px) {
+  .lower { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="head">
+    <div>
+      <div class="tag">다타유 · 다 타유? · Pleos Connect 앱 시안</div>
+      <h1>인터랙티브 프로토타입</h1>
+      <p>운전자는 못 느끼는 동승자의 멀미를 보여주는 화면을 직접 재생해 보세요. 게이지, 원인 배지, 정차 카드, 리포트는 모두 <b>core-engine</b>이 합성 주행 데이터로 계산한 결과입니다.</p>
+    </div>
+  </header>
+
+  <section class="screen-wrap" aria-label="차량 디스플레이 미리보기">
+    <div class="screen cq" id="screen">
+      <div class="map" aria-hidden="true">
+        <svg viewBox="0 0 1280 480" preserveAspectRatio="xMidYMid slice">
+          <rect width="1280" height="480" fill="#121820"></rect>
+          <g id="mapMove">
+            <path id="roads" d="" stroke="#232D38" stroke-width="34" fill="none" stroke-linecap="round"></path>
+            <path id="side" d="" stroke="#1B232C" stroke-width="18" fill="none"></path>
+            <path id="route" d="" stroke="#3D8BFF" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+          </g>
+          <circle cx="420" cy="300" r="17" fill="#3D8BFF"></circle>
+          <path d="M432 300 L410 290 L414 300 L410 310 Z" fill="#FFFFFF"></path>
+        </svg>
+      </div>
+      <div class="tbt" id="tbt">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#F2F4F6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:2.2em;height:2.2em"><path d="M7 20V11a4 4 0 0 1 4-4h8"></path><path d="M15 3l4 4-4 4"></path></svg>
+        <div><div class="dist" id="tbtDist">1200m</div><div class="road">우회전 · 강변로</div></div>
+      </div>
+      <div class="stopped-pill" id="stoppedPill"><i></i><span>정차 중 · 0 km/h</span></div>
+      <div class="speed"><b id="spd">0</b><span>km/h</span></div>
+
+      <div class="chip hidden" id="chip" role="status" aria-live="polite">
+        <div class="avatar" id="avatar"></div>
+        <div class="badge" id="badge"></div>
+      </div>
+
+      <div class="card" id="card" role="dialog" aria-label="정차 시 코칭 카드">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:.8em">
+          <div class="big" id="cardFace"></div>
+        </div>
+        <div style="min-width:0">
+          <h2 id="cardTitle">아이가 조금 힘들어해요</h2>
+          <div class="cause"><span class="badge" id="cardBadge"></span><span id="cardCause"></span></div>
+          <p id="cardCoach"></p>
+          <div class="tts"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"></path></svg><span>Gleo가 음성으로 읽어드리는 중</span></div>
+          <div class="fb">
+            <button type="button" id="fbOk">괜찮아요</button>
+            <button type="button" class="warn" id="fbBad">속 안 좋아요</button>
+          </div>
+          <div class="fb-note" id="fbNote">동승자가 누르면 다음부터 민감도가 맞춰져요</div>
+        </div>
+      </div>
+
+      <div class="overlay show" id="startView">
+        <div>
+          <h2>오늘은 누가 함께 타나요?</h2>
+          <p class="sub">선택한 동승자 기준으로 흔들림을 살펴볼게요. 운전 중에는 작은 아이콘으로만 알려드려요.</p>
+        </div>
+        <div class="people" id="people"></div>
+        <div class="start-row">
+          <span id="selCount">2명 선택됨 · 가장 힘든 동승자 한 명만 운전 화면에 표시돼요</span>
+          <button type="button" class="go" id="goBtn">이대로 출발</button>
+        </div>
+      </div>
+
+      <div class="overlay" id="reportView">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:1em">
+          <div>
+            <h2>오늘의 동승자 컨디션</h2>
+            <p class="sub" id="rMeta"></p>
+          </div>
+          <button type="button" class="again" id="againBtn">다시 출발</button>
+        </div>
+        <div class="report-grid">
+          <div class="rbox" id="rPeople"></div>
+          <div class="rbox">
+            <h3>무엇 때문에 힘들었을까요?</h3>
+            <div id="rShare" style="display:flex;flex-direction:column;gap:.9em"></div>
+            <div class="r-note">회색은 운전자가 바꿀 수 없는 상황이라 코칭에서 빠져요.</div>
+          </div>
+          <div class="rbox">
+            <h3>다음 주행</h3>
+            <div><div class="r-note">10km당 개선할 이벤트</div><div class="big-num" id="rPer10"></div></div>
+            <div><div class="r-note">다음 주행 팁</div><div id="rTip" style="font-size:1.15em;font-weight:500;line-height:1.45"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="controls" aria-label="시연 조작">
+    <div class="row">
+      <label class="field" for="scenario">시나리오
+        <select id="scenario"></select>
+      </label>
+      <button type="button" class="btn primary" id="playBtn" aria-label="재생">재생</button>
+      <div class="seg" role="group" aria-label="재생 속도" id="speedSeg">
+        <button type="button" data-speed="1" aria-pressed="false">1배</button>
+        <button type="button" data-speed="5" aria-pressed="false">5배</button>
+        <button type="button" data-speed="15" aria-pressed="true">15배</button>
+        <button type="button" data-speed="40" aria-pressed="false">40배</button>
+      </div>
+      <label class="field" for="soundOn"><input type="checkbox" id="soundOn" checked> 효과음·음성 안내</label>
+      <span class="time" id="clock">0:00 / 0:00</span>
+    </div>
+    <div class="scrub">
+      <canvas id="chart" aria-hidden="true"></canvas>
+      <input type="range" id="seek" min="0" max="100" step="1" value="0" aria-label="재생 위치">
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--comfort)"></i>편안</span>
+      <span><i style="background:var(--caution)"></i>주의 40+</span>
+      <span><i style="background:var(--discomfort)"></i>힘듦 70+</span>
+      <span><i style="background:var(--moment)"></i>순간 이벤트</span>
+      <span><i style="background:#F2B33D;border-radius:50%"></i>반복 패턴</span>
+      <span><i style="background:var(--situation)"></i>정체(운전자 탓 아님)</span>
+    </div>
+  </section>
+
+  <section class="lower">
+    <div class="panel">
+      <h2>엔진 로그</h2>
+      <ul class="log" id="log" aria-live="off"></ul>
+    </div>
+    <div class="panel">
+      <h2>보는 법</h2>
+      <ol class="how">
+        <li><b>출발 화면</b>에서 동승자를 고르고 '이대로 출발'을 누르세요. 여러 명이면 가장 힘든 한 명만 표시됩니다.</li>
+        <li><b>주행 중</b>에는 오른쪽 아래 아이콘과 원인 배지 1개만 뜹니다. 글자는 없고, 단계가 오를 때만 효과음이 1회 울립니다.</li>
+        <li>게이지가 '주의' 이상인데 <b>다음 회전이 300m 안</b>이면, 내비 안내와 아이콘이 미리 강조됩니다(NaviHelper 예측).</li>
+        <li><b>정차하면</b> 원인과 한 줄 코칭이 담긴 카드가 뜨고, Gleo가 읽어 줍니다. 정체는 운전자 탓으로 코칭하지 않습니다.</li>
+        <li>주행이 끝나면 <b>리포트</b>에서 원인 비율과 다음 주행 팁을 확인하세요.</li>
+      </ol>
+      <p class="r-note" style="margin:0">합성 데이터라서 수치보다 원인이 제대로 구분되는지를 보여주는 용도입니다. 위아래 흔들림(방지턱)은 차량 데이터로 측정하지 않습니다.</p>
+    </div>
+  </section>
+</main>
+
+<script type="application/json" id="timeline">__TIMELINE__</script>
+<script>
+(function () {
+  "use strict";
+  var DATA = JSON.parse(document.getElementById("timeline").textContent);
+  var CAUSES = DATA.causes;
+
+  var SCEN = [
+    ["family_trip", "가족 나들이 (시내 → 고속도로 → 강변 커브 → 정체)"],
+    ["mountain_curves", "산길 연속 커브 (0.2Hz 좌우 흔들림)"],
+    ["city_aggressive", "시내 급출발 · 급제동"],
+    ["ev_strong_regen", "전기차 강한 회생제동"],
+    ["traffic_stop_and_go", "정체 가다 서다"],
+    ["brake_pumping", "브레이크 끊어 밟기"]
+  ];
+  var TYPES = [
+    { k: "CHILD", name: "아이", note: "가다 서다, 연속 커브에 민감해요" },
+    { k: "PREGNANT", name: "임산부", note: "급제동, 급출발에 가장 민감해요" },
+    { k: "SENIOR", name: "어르신", note: "급회전 때 몸 쏠림을 줄여요" },
+    { k: "DOG", name: "반려견", note: "어린 강아지일수록 민감해요" },
+    { k: "SENSITIVE_ADULT", name: "멀미 민감", note: "타면서 개인에 맞게 보정돼요" }
+  ];
+  var COLORS = ["#3CC4A0", "#F2B33D", "#FF7A59"];
+
+  /* ── 아이콘 ── */
+  var S = 'fill="none" stroke="#F2F4F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+  function mouth(lv) {
+    if (lv >= 2) return '<path d="M14 29c2-2 4 2 6 0s4 2 6 0"/>';
+    if (lv === 1) return '<path d="M15 28h10"/>';
+    return '<path d="M15 27c3 3 7 3 10 0"/>';
+  }
+  function eyes(lv) {
+    return lv >= 2 ? '<path d="M13 20.5l3 1.2M27 20.5l-3 1.2"/>' : '<circle cx="15" cy="21" r="1.4" fill="#F2F4F6"/><circle cx="25" cy="21" r="1.4" fill="#F2F4F6"/>';
+  }
+  function face(type, lv) {
+    var inner;
+    if (type === "CHILD") inner = '<circle cx="20" cy="22" r="13"/><path d="M17 9c0-3 4-4 5-1"/>' + eyes(lv) + mouth(lv);
+    else if (type === "PREGNANT") inner = '<circle cx="18" cy="9" r="5"/><path d="M18 14v6c0 0 9 1 9 8s-6 7-9 7"/><path d="M18 20c-3 0-5 3-5 7v8"/>';
+    else if (type === "SENIOR") inner = '<circle cx="20" cy="21" r="13"/><circle cx="15" cy="20" r="3.2"/><circle cx="25" cy="20" r="3.2"/><path d="M18.2 20h3.6"/><path d="M12 11c4-3 12-3 16 0"/>' + (lv >= 2 ? '<path d="M15 29c2-2 3 2 5 0s3 2 5 0"/>' : lv === 1 ? '<path d="M15 28h10"/>' : '<path d="M15 28c3 2 7 2 10 0"/>');
+    else if (type === "DOG") inner = '<path d="M11 12c-5 0-7 9-4 13l4-3"/><path d="M29 12c5 0 7 9 4 13l-4-3"/><path d="M11 12c3-3 15-3 18 0v12c0 6-4 9-9 9s-9-3-9-9z"/>' + (lv >= 2 ? '<path d="M14 19l3 1.2M26 19l-3 1.2"/>' : '<circle cx="16" cy="20" r="1.4" fill="#F2F4F6"/><circle cx="24" cy="20" r="1.4" fill="#F2F4F6"/>') + '<path d="M18 26h4l-2 2z" fill="#F2F4F6"/>';
+    else inner = '<circle cx="20" cy="21" r="13"/><path d="M13 19h4M23 19h4"/>' + mouth(Math.max(lv, 1));
+    return '<svg viewBox="0 0 40 40" ' + S + ' aria-hidden="true">' + inner + "</svg>";
+  }
+  var CI = 'fill="none" stroke="#1A1206" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"';
+  var CAUSE_ICON = {
+    HARD_BRAKE: '<path d="M8 3h8l5 5v8l-5 5H8l-5-5V8z"/><path d="M12 8v5"/><circle cx="12" cy="16.5" r="0.8" fill="#1A1206"/>',
+    REGEN_DECEL: '<rect x="3" y="7" width="15" height="10" rx="2"/><path d="M21 10v4"/><path d="M10.5 9v6M8 12.5l2.5 2.5 2.5-2.5"/>',
+    HARD_ACCEL: '<path d="M4 6l6 6-6 6"/><path d="M12 6l6 6-6 6"/>',
+    SHARP_LATERAL: '<path d="M6 21V13c0-4 3-7 7-7h5"/><path d="M15 3l3 3-3 3"/>',
+    BRAKE_PUMPING: '<path d="M5 8v8M10 6v12M15 8v8M20 10v4"/>',
+    CONTINUOUS_CURVES: '<path d="M2 12c2.5-6 5-6 7.5 0s5 6 7.5 0 3.5-4 5-2"/>',
+    STOP_AND_GO: '<rect x="2" y="9" width="8" height="6" rx="1.5"/><rect x="14" y="9" width="8" height="6" rx="1.5"/>'
+  };
+  function causeColor(c) {
+    var k = CAUSES[c].kind;
+    return k === "SITUATION" ? "#A9B4C0" : k === "PATTERN" ? "#F2B33D" : "#FF9B80";
+  }
+  function causeSvg(c) {
+    return '<svg viewBox="0 0 24 24" ' + CI + ' role="img" aria-label="' + CAUSES[c].label + '">' + CAUSE_ICON[c] + "</svg>";
+  }
+  function josa(w) {
+    var c = w.charCodeAt(w.length - 1);
+    if (c < 0xac00 || c > 0xd7a3) return w + "이(가)";
+    return (c - 0xac00) % 28 ? w + "이" : w + "가";
+  }
+
+  /* ── 상태 ── */
+  var el = function (id) { return document.getElementById(id); };
+  var selected = { CHILD: true, DOG: true };
+  var scenario = "family_trip";
+  var t = 0, playing = false, speed = 15, lastTs = 0, phase = "start";
+  var dist = 0, lastIdx = -1, cardUntil = -1, feedbackNote = "";
+  var merged = [];
+
+  /* 선택한 동승자들의 타임라인을 합쳐 '가장 힘든 한 명'을 고른다 (엔진의 대표 동승자 규칙과 동일). */
+  function buildMerged() {
+    var keys = TYPES.map(function (x) { return x.k; }).filter(function (k) { return selected[k]; });
+    var runs = keys.map(function (k) { return { k: k, r: DATA.scenarios[scenario][k] }; });
+    var n = runs[0].r.frames.length;
+    merged = [];
+    for (var i = 0; i < n; i++) {
+      var best = null;
+      runs.forEach(function (x) {
+        var f = x.r.frames[i];
+        if (!best || f[2] > best.f[2]) best = { k: x.k, f: f };
+      });
+      var evs = {}, cards = [];
+      runs.forEach(function (x) {
+        var f = x.r.frames[i];
+        f[7].forEach(function (e) { evs[e] = 1; });
+        if (f[8] && x.k === best.k) cards.push({ msg: f[8], cause: f[9] });
+      });
+      var sound = runs.some(function (x) { return x.k === best.k && x.r.frames[i][6]; });
+      merged.push({ t: best.f[0], v: best.f[1], g: best.f[2], lv: best.f[3], b: best.f[4], stop: best.f[5], snd: sound, ev: Object.keys(evs), card: cards[0] || null, who: best.k });
+    }
+    el("seek").max = String(n - 1);
+    drawChart();
+  }
+
+  /* ── 지도 (주행거리만큼 왼쪽으로 흐르는 추상 도로) ── */
+  function buildMap() {
+    var d = "M-200 300", s = "", x = -200;
+    for (var i = 0; i < 40; i++) {
+      x += 160;
+      var y = 300 + Math.sin(i * 0.9) * 40;
+      d += " L" + x + " " + y.toFixed(0);
+      if (i % 3 === 0) s += " M" + x + " " + (y - 20).toFixed(0) + " L" + (x + 60) + " -40";
+      if (i % 4 === 1) s += " M" + x + " " + (y + 20).toFixed(0) + " L" + (x - 40) + " 520";
+    }
+    el("roads").setAttribute("d", d);
+    el("route").setAttribute("d", d);
+    el("side").setAttribute("d", s);
+  }
+
+  /* ── 출발 화면 ── */
+  function renderPeople() {
+    var html = "";
+    TYPES.forEach(function (p) {
+      var on = !!selected[p.k];
+      html += '<button type="button" class="person" data-k="' + p.k + '" aria-pressed="' + on + '">' +
+        '<span class="check"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#0B2A22" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>' +
+        '<span class="face">' + face(p.k, 0) + "</span><b>" + p.name + "</b><span>" + p.note + "</span></button>";
+    });
+    el("people").innerHTML = html;
+    var n = Object.keys(selected).filter(function (k) { return selected[k]; }).length;
+    el("selCount").textContent = n ? n + "명 선택됨 · 가장 힘든 동승자 한 명만 운전 화면에 표시돼요" : "동승자를 한 명 이상 골라주세요";
+    el("goBtn").disabled = n === 0;
+  }
+  el("people").addEventListener("click", function (e) {
+    var b = e.target.closest(".person");
+    if (!b) return;
+    var k = b.getAttribute("data-k");
+    selected[k] = !selected[k];
+    renderPeople();
+  });
+
+  /* ── 소리 ── */
+  var actx = null;
+  function beep(level) {
+    if (!el("soundOn").checked) return;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      var o = actx.createOscillator(), g = actx.createGain();
+      o.type = "sine";
+      o.frequency.value = level >= 2 ? 784 : 659;
+      g.gain.setValueAtTime(0.0001, actx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.25, actx.currentTime + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + 0.5);
+      o.connect(g); g.connect(actx.destination);
+      o.start(); o.stop(actx.currentTime + 0.55);
+    } catch (err) { /* 오디오를 쓸 수 없는 환경 */ }
+  }
+  function speak(text) {
+    if (!el("soundOn").checked || speed > 5) return;
+    try {
+      var u = new SpeechSynthesisUtterance(text.replace(/·/g, ","));
+      u.lang = "ko-KR"; u.rate = 1.05;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    } catch (err) { /* 음성 합성을 쓸 수 없는 환경 */ }
+  }
+
+  /* ── 로그 ── */
+  function fmtT(s) { var m = Math.floor(s / 60), x = Math.floor(s % 60); return m + ":" + (x < 10 ? "0" : "") + x; }
+  function log(sec, cls, text) {
+    var li = document.createElement("li");
+    li.innerHTML = "<time>" + fmtT(sec) + '</time><span class="' + cls + '"></span>';
+    li.lastChild.textContent = text;
+    el("log").appendChild(li);
+    el("log").scrollTop = el("log").scrollHeight;
+  }
+  function nameOf(k) { for (var i = 0; i < TYPES.length; i++) if (TYPES[i].k === k) return TYPES[i].name; return k; }
+
+  /* ── 한 프레임 그리기 ── */
+  function render(idx, fire) {
+    var f = merged[idx];
+    if (!f) return;
+    el("spd").textContent = String(f.v);
+    var stopped = f.stop === 1;
+    el("stoppedPill").style.display = stopped ? "flex" : "none";
+    el("tbt").style.display = stopped ? "none" : "flex";
+
+    var tb = 1200 - (dist % 1200);
+    el("tbtDist").textContent = Math.round(tb / 10) * 10 + "m";
+    var pre = f.lv >= 1 && tb <= 300 && !stopped;
+    el("tbt").classList.toggle("pre", pre);
+
+    var chip = el("chip");
+    chip.classList.toggle("hidden", f.lv === 0);
+    chip.classList.toggle("pulse", pre);
+    var av = el("avatar");
+    av.style.borderColor = COLORS[f.lv];
+    av.innerHTML = face(f.who, f.lv);
+    if (f.b) {
+      el("badge").style.display = "flex";
+      el("badge").style.background = causeColor(f.b);
+      el("badge").innerHTML = causeSvg(f.b);
+    } else {
+      el("badge").style.display = "none";
+    }
+    chip.setAttribute("aria-label", nameOf(f.who) + " " + ["편안", "주의", "힘듦"][f.lv] + (f.b ? ", " + CAUSES[f.b].label : ""));
+
+    if (fire) {
+      f.ev.forEach(function (e) {
+        var c = CAUSES[e];
+        log(f.t, c.actionable ? "" : "sit", "이벤트  " + c.label + (c.actionable ? "" : " (운전자 탓 아님)"));
+      });
+      if (f.snd) { beep(f.lv); log(f.t, "snd", "♪ 효과음 · " + nameOf(f.who) + " " + ["편안", "주의", "힘듦"][f.lv] + " 단계로 상승 (게이지 " + f.g + ")"); }
+      if (f.card) showCard(f, idx);
+      if (pre && !render.preShown) { log(f.t, "snd", "예측 안내 · 300m 앞 회전, 미리 감속 권장"); }
+      render.preShown = pre;
+    }
+    if (cardUntil >= 0 && (idx > cardUntil || !stopped)) hideCard();
+  }
+
+  function showCard(f, idx) {
+    var c = f.card;
+    var parts = c.msg.split(" · ");
+    el("cardTitle").textContent = parts[0];
+    el("cardCause").textContent = parts.length > 2 ? parts[1] : CAUSES[c.cause].label;
+    el("cardCoach").textContent = parts[parts.length - 1];
+    el("cardBadge").style.background = causeColor(c.cause);
+    el("cardBadge").innerHTML = causeSvg(c.cause);
+    el("cardFace").style.borderColor = COLORS[f.lv];
+    el("cardFace").innerHTML = face(f.who, f.lv);
+    el("fbNote").textContent = "동승자가 누르면 다음부터 민감도가 맞춰져요";
+    el("card").classList.add("show");
+    cardUntil = idx + 12;
+    log(f.t, "card-l", "정차 카드 · " + c.msg);
+    speak(c.msg);
+  }
+  function hideCard() { el("card").classList.remove("show"); cardUntil = -1; }
+  el("fbOk").addEventListener("click", function () { el("fbNote").textContent = "기록했어요 · 민감도 0.95배"; log(t, "", "피드백 · 괜찮아요 → 민감도 소폭 하향"); });
+  el("fbBad").addEventListener("click", function () { el("fbNote").textContent = "기록했어요 · 민감도 1.1배"; log(t, "snd", "피드백 · 속 안 좋아요 → 민감도 1.1배"); });
+
+  /* ── 리포트 ── */
+  function showReport() {
+    var keys = TYPES.map(function (x) { return x.k; }).filter(function (k) { return selected[k]; });
+    var reps = keys.map(function (k) { return { k: k, r: DATA.scenarios[scenario][k].report }; });
+    reps.sort(function (a, b) { return b.r.peak - a.r.peak; });
+    var top = reps[0].r;
+    el("rMeta").textContent = top.min.toFixed(1) + "분 · " + top.km.toFixed(1) + "km · " + SCEN.filter(function (s) { return s[0] === scenario; })[0][1];
+    var ph = "<h3>동승자별</h3>";
+    reps.forEach(function (x) {
+      var r = x.r, tot = r.lv[0] + r.lv[1] + r.lv[2] || 1, lvMax = r.peak >= 70 ? 2 : r.peak >= 40 ? 1 : 0;
+      ph += '<div class="rp"><span class="face" style="border-color:' + COLORS[lvMax] + '">' + face(x.k, lvMax) + "</span><div><b>" + nameOf(x.k) + "</b><small>최고 게이지 " + r.peak + "</small></div></div>" +
+        '<div class="lvbar" role="img" aria-label="편안 ' + r.lv[0] + "분, 주의 " + r.lv[1] + "분, 힘듦 " + r.lv[2] + '분">' +
+        '<i style="width:' + (r.lv[0] / tot * 100) + '%;background:#3CC4A0"></i><i style="width:' + (r.lv[1] / tot * 100) + '%;background:#F2B33D"></i><i style="width:' + (r.lv[2] / tot * 100) + '%;background:#FF7A59"></i></div>' +
+        '<div class="r-note">편안 ' + r.lv[0] + "분 · 주의 " + r.lv[1] + "분 · 힘듦 " + r.lv[2] + "분</div>";
+    });
+    el("rPeople").innerHTML = ph;
+    var sh = "";
+    if (!top.share.length || top.smooth) sh = '<div class="r-note">부드러운 주행이었어요. 게이지를 올린 원인이 거의 없어요.</div>';
+    top.share.forEach(function (s) {
+      var c = CAUSES[s[0]], pct = Math.round(s[1] * 100);
+      if (pct < 1) return;
+      sh += '<div class="share-row"><div class="lab"><span style="color:' + (c.actionable ? "#F2F4F6" : "#A9B4C0") + '">' + c.label + (c.actionable ? "" : " · 운전자 탓 아님") + "</span><span>" + pct + '%</span></div><div class="bar"><i style="width:' + pct + "%;background:" + (c.actionable ? causeColor(s[0]) : "#6B7785") + '"></i></div></div>';
+    });
+    el("rShare").innerHTML = sh;
+    el("rPer10").textContent = top.per10.toFixed(1) + "회";
+    el("rTip").textContent = top.tip ? CAUSES[top.tip].coach : "지금처럼 부드럽게 운전해 주세요";
+    el("reportView").classList.add("show");
+    phase = "report";
+    log(merged[merged.length - 1].t, "card-l", "주행 종료 · 리포트 표시");
+  }
+
+  /* ── 게이지 차트 (스크러버 배경) ── */
+  function drawChart() {
+    var cv = el("chart"), r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    cv.width = Math.max(1, Math.round(r.width * dpr)); cv.height = Math.max(1, Math.round(r.height * dpr));
+    var c = cv.getContext("2d"); c.scale(dpr, dpr);
+    var W = r.width, H = r.height - 18, n = merged.length;
+    c.clearRect(0, 0, W, r.height);
+    [40, 70].forEach(function (v, i) {
+      var y = H - v / 100 * (H - 6);
+      c.strokeStyle = i ? "rgba(255,122,89,.35)" : "rgba(242,179,61,.35)";
+      c.setLineDash([4, 4]); c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke();
+    });
+    c.setLineDash([]);
+    for (var i = 1; i < n; i++) {
+      var x0 = (i - 1) / (n - 1) * W, x1 = i / (n - 1) * W;
+      var y0 = H - merged[i - 1].g / 100 * (H - 6), y1 = H - merged[i].g / 100 * (H - 6);
+      c.strokeStyle = COLORS[merged[i].lv]; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+      merged[i].ev.forEach(function (e, j) {
+        c.fillStyle = causeColor(e);
+        c.beginPath(); c.arc(x1, 6 + j * 7, 3, 0, Math.PI * 2); c.fill();
+      });
+    }
+    var px = (Math.min(t, n - 1)) / Math.max(1, n - 1) * W;
+    c.strokeStyle = "#F2F4F6"; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(px, 0); c.lineTo(px, H); c.stroke();
+  }
+
+  /* ── 재생 루프 ── */
+  function setPlaying(p) {
+    playing = p;
+    el("playBtn").textContent = p ? "일시정지" : "재생";
+    el("playBtn").setAttribute("aria-label", p ? "일시정지" : "재생");
+    if (p) { lastTs = performance.now(); requestAnimationFrame(tick); }
+  }
+  function tick(ts) {
+    if (!playing) return;
+    var dt = Math.max(0, (ts - lastTs) / 1000); lastTs = ts;
+    var n = merged.length;
+    var idxBefore = Math.floor(t);
+    t = Math.min(n - 1, t + dt * speed);
+    var idx = Math.floor(t);
+    var f = merged[idx];
+    dist += (f.v / 3.6) * dt * speed;
+    el("mapMove").setAttribute("transform", "translate(" + (-(dist * 0.6) % 640).toFixed(1) + " 0)");
+    for (var i = idxBefore + 1; i <= idx; i++) render(i, true);
+    if (idx === idxBefore) render(idx, false);
+    el("seek").value = String(idx);
+    el("clock").textContent = fmtT(f.t) + " / " + fmtT(merged[n - 1].t);
+    if (idx % 2 === 0) drawChart();
+    if (idx >= n - 1) { setPlaying(false); hideCard(); showReport(); drawChart(); return; }
+    requestAnimationFrame(tick);
+  }
+  function reset(toStart) {
+    setPlaying(false);
+    t = 0; dist = 0; hideCard();
+    el("log").innerHTML = "";
+    el("reportView").classList.remove("show");
+    buildMerged();
+    render(0, false);
+    el("clock").textContent = "0:00 / " + fmtT(merged[merged.length - 1].t);
+    if (toStart) { el("startView").classList.add("show"); phase = "start"; renderPeople(); }
+  }
+  function start() {
+    el("startView").classList.remove("show");
+    phase = "drive";
+    reset(false);
+    log(0, "", "출발 · 동승자 " + TYPES.filter(function (x) { return selected[x.k]; }).map(function (x) { return x.name; }).join(", "));
+    setPlaying(true);
+  }
+
+  el("goBtn").addEventListener("click", start);
+  el("againBtn").addEventListener("click", function () { reset(true); });
+  el("playBtn").addEventListener("click", function () {
+    if (phase === "start") { start(); return; }
+    if (phase === "report") { reset(false); phase = "drive"; setPlaying(true); return; }
+    setPlaying(!playing);
+  });
+  el("scenario").addEventListener("change", function () { scenario = this.value; reset(true); });
+  el("speedSeg").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    speed = Number(b.getAttribute("data-speed"));
+    Array.prototype.forEach.call(this.querySelectorAll("button"), function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+  });
+  el("seek").addEventListener("input", function () {
+    if (phase === "start") { el("startView").classList.remove("show"); phase = "drive"; }
+    el("reportView").classList.remove("show");
+    if (phase === "report") phase = "drive";
+    t = Number(this.value); hideCard();
+    render(Math.floor(t), false);
+    el("clock").textContent = fmtT(merged[Math.floor(t)].t) + " / " + fmtT(merged[merged.length - 1].t);
+    drawChart();
+  });
+  window.addEventListener("resize", drawChart);
+
+  SCEN.forEach(function (s) {
+    var o = document.createElement("option"); o.value = s[0]; o.textContent = s[1]; el("scenario").appendChild(o);
+  });
+  buildMap();
+  renderPeople();
+  reset(false);
+  /* 첫 화면: 출발 화면 + 아래 차트에 가족 나들이 게이지가 보이는 상태 */
+})();
+</script>
+</body>
+</html>

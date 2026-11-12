@@ -71,6 +71,8 @@ data class EngineConfig(
     // ── 정차 판정 ─────────────────────────────
     val stoppedSpeedMps: Double = 0.5,
     val stoppedMinSec: Double = 2.0,
+    /** 정차 카드 최소 간격. 신호마다 같은 말을 반복하지 않도록. */
+    val stopCardCooldownSec: Double = 90.0,
 
     // ── 예측 안내 (NaviHelper TBT) ─────────────
     val preAlertDistanceM: Double = 300.0,

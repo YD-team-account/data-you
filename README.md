@@ -16,6 +16,7 @@
 - [동작 방식](#동작-방식)
 - [원인 7종](#원인-7종)
 - [Pleos Connect SDK / API 사용 계획](#pleos-connect-sdk--api-사용-계획)
+- [인터랙티브 프로토타입](#인터랙티브-프로토타입)
 - [빠르게 실행해 보기](#빠르게-실행해-보기)
 - [시나리오 재생 결과](#시나리오-재생-결과)
 - [프로젝트 구조](#프로젝트-구조)
@@ -105,6 +106,18 @@ Pleos SDK 정책(*AAOS 표준 API가 있으면 표준 우선, 제조사 특화 �
 
 ---
 
+## 인터랙티브 프로토타입
+
+[`docs/prototype/index.html`](docs/prototype/index.html)을 브라우저로 열면 차량 화면을 재생해 볼 수 있습니다. 파일 하나로 되어 있고, GitHub Pages로도 공개할 수 있습니다.
+
+- 동승자를 고르고 출발하면 주행 중 아이콘 → 정차 카드 → 하차 리포트 순서로 화면이 흘러갑니다.
+- 화면의 게이지·배지·카드는 손으로 만든 값이 아닙니다. `core-engine`이 시나리오 6종 × 동승자 5종을 실제로 계산한 타임라인(`timeline.json`)을 재생합니다.
+- 다시 만들려면:
+  ```bash
+  ./gradlew :core-engine:run --args="timeline docs/prototype/timeline.json"
+  python3 tools/build_prototype.py
+  ```
+
 ## 빠르게 실행해 보기
 
 필요한 것: JDK 17 이상 (Android Studio에 포함된 JBR이면 됩니다)
@@ -159,10 +172,11 @@ timestamp_ms,speed_mps,yaw_rate_rad_s,heading_deg,brake,turn_signal
 
 ## 시나리오 재생 결과
 
-합성 주행 데이터 8종을 아이 프로필로 재생한 결과입니다. 재현하려면 `./gradlew :core-engine:run --args="summary CHILD"`를 실행하세요.
+합성 주행 데이터 9종을 아이 프로필로 재생한 결과입니다. 재현하려면 `./gradlew :core-engine:run --args="summary CHILD"`를 실행하세요.
 
 | 시나리오 | 최고 게이지 | 감지된 원인 | 다음 주행 팁 |
 |---|---|---|---|
+| `family_trip` | 100 | 브레이크 급제동 2, 회생·관성 급감속 3, 급출발 2, 좌우 흔들림(연속 커브) 3, 정체 가다 서다 1 | 커브 앞에서 미리 속도를 줄여보세요 |
 | `smooth_highway` | 0 | - | - |
 | `city_aggressive` | 100 | 브레이크 급제동 6, 급출발 6 | 브레이크를 조금 일찍, 약하게 밟아보세요 |
 | `ev_strong_regen` | 50 | 회생·관성 급감속 5 | 회생제동 단계를 한 단계 낮춰보세요 |
@@ -191,7 +205,8 @@ data_you/
 │       ├── report/                   # 하차 리포트
 │       └── replay/                   # 합성 시나리오, CSV, 재생 CLI
 ├── sample-data/                      # 시나리오 CSV (에뮬레이터 주입·시연용)
-├── docs/                             # 설계 문서
+├── docs/                             # 설계 문서, prototype/ (인터랙티브 HTML)
+├── tools/                            # 프로토타입 빌드 스크립트
 └── app/                              # (M2) AAOS 앱 — Compose UI + Pleos SDK 어댑터
 ```
 
@@ -199,7 +214,7 @@ data_you/
 
 ## 마일스톤
 
-- [x] **M1 — 엔진**: 멀미 게이지, 원인 7종, 배지 규칙, 리포트, 시나리오 8종, 테스트 20개
+- [x] **M1 — 엔진**: 멀미 게이지, 원인 7종, 배지 규칙, 리포트, 시나리오 9종, 테스트 20개, 인터랙티브 프로토타입
 - [ ] **M2 — AAOS 앱**: 엔진 + Compose UI(주행 중 / 정차 / 리포트 / 프로필), CSV 재생 데이터 소스, APK
 - [ ] **M3 — Pleos 연동**: Vehicle·NaviHelper·Gleo TTS 어댑터, Pleos Connect Emulator 시연 영상
 - [ ] **Todo**: Gleo STT·LLM, HVAC·Window 자동 케어, BLE 센서(위아래 흔들림), 멀미 위험 구간 지도
