@@ -8,8 +8,13 @@
     <uses-permission android:name="android.car.permission.CAR_SPEED" />
     <!-- AAOS 차량 속성: 기어(GEAR_SELECTION), 시동(IGNITION_STATE), 주차 브레이크(PARKING_BRAKE_ON) -->
     <uses-permission android:name="android.car.permission.CAR_POWERTRAIN" />
-    <!-- 자이로가 없는 차량에서 좌우 가속을 GPS 방위각으로 추정 (M3) -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Pleos Vehicle SDK (M3). 런타임 요청 없이 매니페스트 선언만 필요 -->
+    <!-- 브레이크 페달(Brake), 주행거리(Odometer) -->
+    <uses-permission android:name="pleos.car.permission.CAR_DRIVE" />
+    <!-- 방향지시등(TurnSignal) -->
+    <uses-permission android:name="pleos.car.permission.CAR_LIGHTS" />
+    <!-- 핸들 각도(SteeringWheel) → 요레이트 추정 -->
+    <uses-permission android:name="android.car.permission.READ_CAR_STEERING" />
 
     <application
         android:allowBackup="false"

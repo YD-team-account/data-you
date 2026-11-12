@@ -12,8 +12,8 @@ android {
         applicationId = "team.datayou.app"
         minSdk = 28
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.2.0-m2"
+        versionCode = 3
+        versionName = "0.3.0-m3"
     }
 
     // AAOS Car API (CarPropertyManager, CarUxRestrictionsManager)
@@ -50,6 +50,10 @@ android {
 
 dependencies {
     implementation(project(":core-engine"))
+
+    // M3: Pleos Connect SDK
+    implementation("ai.pleos.playground:Vehicle:2.3.2")
+    implementation("ai.pleos.playground:NaviHelper:3.0.5")
 
     val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
     implementation(composeBom)

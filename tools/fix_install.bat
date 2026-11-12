@@ -7,7 +7,9 @@ if not exist dist mkdir dist
 set LOG=%CD%\dist\fix_install_log.txt
 set ADB=%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe
 if not exist "%ADB%" set ADB=adb
-set APK=app\build\outputs\apk\debug\app-debug.apk
+set APK=%~1
+if "%APK%"=="" set APK=app\build\outputs\apk\debug\app-debug.apk
+if not exist "%APK%" set APK=dist\datayou-m3-debug.apk
 if not exist "%APK%" set APK=dist\datayou-m2-debug.apk
 
 echo ==== DataYou install fix %DATE% %TIME% ==== > "%LOG%"

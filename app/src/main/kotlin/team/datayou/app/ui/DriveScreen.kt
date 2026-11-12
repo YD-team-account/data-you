@@ -158,14 +158,20 @@ private fun DataYouChip(type: team.datayou.engine.model.PassengerType, level: Ga
 
 @Composable
 private fun BoxScope.DemoBar(s: Screen.Driving, vm: DataYouActions) {
-    Row(
+    Column(
         Modifier.align(Alignment.TopEnd).padding(20.dp).background(Palette.chip.copy(alpha = 0.92f), RoundedCornerShape(12.dp)).padding(6.dp),
+        horizontalAlignment = Alignment.End,
+    ) {
+    Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text("데모 · ${s.sourceLabel} · ${"%d:%02d".format((s.elapsedSec / 60).toInt(), (s.elapsedSec % 60).toInt())}", color = Palette.faint, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 8.dp))
         if (s.isReplay) listOf(1, 5, 15).forEach { f -> Pill("${f}배", selected = s.speedFactor == f) { vm.setSpeedFactor(f) } }
         Pill("주행 종료", selected = false) { vm.finishTrip() }
+    }
+    // 실시간 모드: Pleos 채널별 수신 상태 (시연·디버그용)
+    s.channels?.let { Text(it, color = Palette.faint, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) }
     }
 }
 

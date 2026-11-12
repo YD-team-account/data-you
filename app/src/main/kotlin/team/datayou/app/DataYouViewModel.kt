@@ -9,8 +9,10 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
-import team.datayou.app.data.CarPropertyDataSource
 import team.datayou.app.data.FakeNavigation
+import team.datayou.app.data.NavigationSource
+import team.datayou.app.data.PleosNavigation
+import team.datayou.app.data.PleosVehicleDataSource
 import team.datayou.app.data.ReplayDataSource
 import team.datayou.app.data.TbtInfo
 import team.datayou.app.data.VehicleDataSource
@@ -46,6 +48,8 @@ sealed interface Screen {
         val speedFactor: Int = 1,
         val isReplay: Boolean = true,
         val liveUnavailable: Boolean = false,
+        /** 실시간 모드의 채널 수신 상태 (데모 막대에 표시) */
+        val channels: String? = null,
     ) : Screen
 
     data class Report(val report: TripReport, val sourceLabel: String) : Screen
@@ -58,7 +62,7 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
 
     private var engine: DataYouEngine? = null
     private var source: VehicleDataSource? = null
-    private var nav = FakeNavigation()
+    private var nav: NavigationSource = FakeNavigation()
     private var cardShownAtMs: Long? = null
 
     // ── 효과음·음성 (M3에서 음성은 Gleo AI TTS로 교체) ──
@@ -82,10 +86,11 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
         if (s.selected.isEmpty()) return
         val profiles = s.selected.sortedBy { it.ordinal }.map { PassengerProfile(id = it.name, type = it) }
         engine = DataYouEngine(profiles)
-        nav = FakeNavigation()
+        nav.release()
+        nav = if (s.live) PleosNavigation(getApplication()) else FakeNavigation()
         cardShownAtMs = null
         val src: VehicleDataSource = if (s.live) {
-            CarPropertyDataSource(getApplication(), viewModelScope)
+            PleosVehicleDataSource(getApplication(), viewModelScope)
         } else {
             ReplayDataSource(getApplication(), s.scenarioAsset, ReplayDataSource.SCENARIOS.getValue(s.scenarioAsset), viewModelScope, speedFactor = 5)
         }
@@ -108,16 +113,20 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
     }
 
     override fun finishTrip() {
-        source?.stop()
+        val src = source
+        src?.stop()
+        nav.release()
         val e = engine ?: return
         val label = (screen.value as? Screen.Driving)?.sourceLabel ?: ""
-        _screen.value = Screen.Report(e.finishTrip(), label)
+        // 실시간 모드는 Pleos 주행거리(Odometer)를 쓰고, 없으면 엔진의 속도 적분값을 쓴다
+        _screen.value = Screen.Report(e.finishTrip((src as? PleosVehicleDataSource)?.tripDistanceKm()), label)
         engine = null
         source = null
     }
 
     override fun backToStart() {
         source?.stop()
+        nav.release()
         engine = null
         _screen.value = Screen.Start()
     }
@@ -127,7 +136,7 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
         val e = engine ?: return
         val u = e.process(sample) ?: return
         val tbt = nav.update(sample)
-        val pre = !u.vehicleStopped && e.shouldPreAlert(tbt.distanceM, tbt.isTurn)
+        val pre = tbt != null && !u.vehicleStopped && e.shouldPreAlert(tbt.distanceM, tbt.isTurn)
 
         if (u.playAlertSound) beep(u.focusPassenger.level)
 
@@ -157,7 +166,10 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
                 stopCard = card,
                 feedbackNote = note,
                 elapsedSec = u.timestampMs / 1000.0,
-                liveUnavailable = (source as? CarPropertyDataSource)?.available == false,
+                liveUnavailable = (source as? PleosVehicleDataSource)?.available == false,
+                channels = (source as? PleosVehicleDataSource)?.let { p ->
+                    p.channels.summary() + " 내비" + if ((nav as? PleosNavigation)?.received == true) "✓" else "–"
+                },
             )
         }
     }
@@ -174,6 +186,7 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
 
     override fun onCleared() {
         source?.stop()
+        nav.release()
         tts.shutdown()
         tone?.release()
     }
