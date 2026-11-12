@@ -168,7 +168,7 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
                 elapsedSec = u.timestampMs / 1000.0,
                 liveUnavailable = (source as? PleosVehicleDataSource)?.available == false,
                 channels = (source as? PleosVehicleDataSource)?.let { p ->
-                    p.channels.summary() + " 내비" + if ((nav as? PleosNavigation)?.received == true) "✓" else "–"
+                    p.channelSummary() + " 내비" + if ((nav as? PleosNavigation)?.received == true) "✓" else "–"
                 },
             )
         }

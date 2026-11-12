@@ -52,12 +52,17 @@ class PleosVehicleDataSource(
         val steering: Boolean = false,
         val odometer: Boolean = false,
     ) {
-        fun summary() = listOf("속도" to speed, "브레이크" to brake, "깜빡이" to turnSignal, "조향" to steering, "주행거리" to odometer)
-            .joinToString(" ") { (n, ok) -> "$n${if (ok) "✓" else "–"}" }
+        fun summary(unsupported: Set<String> = emptySet()) = listOf(
+            Triple("속도", "speed", speed), Triple("브레이크", "brake", brake), Triple("깜빡이", "turnSignal", turnSignal),
+            Triple("조향", "steering", steering), Triple("주행거리", "odometer", odometer),
+        ).joinToString(" ") { (n, key, ok) -> n + when { ok -> "✓"; key in unsupported -> "✗"; else -> "–" } }
     }
 
     @Volatile var channels = Channels()
         private set
+
+    /** 데모 막대 표시용: ✓ 수신 중, – 아직 없음, ✗ 차종 미지원 */
+    fun channelSummary(): String = channels.summary(unsupported)
 
     /** 속도 채널 연결 실패 (Car 서비스·권한 문제) */
     @Volatile var available: Boolean = true
@@ -147,7 +152,7 @@ class PleosVehicleDataSource(
                 )
                 if (now - lastLog >= 2000) {
                     lastLog = now
-                    Log.i(TAG, "t=${now / 1000}s v=${"%.1f".format(v * 3.6)}km/h brake=$brakeOn signal=$signal steer=$steeringDeg odo=$odometerNowKm | ${channels.summary()}")
+                    Log.i(TAG, "t=${now / 1000}s v=${"%.1f".format(v * 3.6)}km/h brake=$brakeOn signal=$signal steer=$steeringDeg odo=$odometerNowKm | ${channelSummary()}")
                 }
                 delay(100)
             }
@@ -175,8 +180,9 @@ class PleosVehicleDataSource(
     }
 
     /**
-     * Pleos 서비스 연결은 비동기라 initialize 직후 등록이 실패할 수 있다.
-     * 채널별로 따로 시도하고, 실패한 채널은 1초 간격으로 최대 10번 다시 등록한다.
+     * 채널마다 ① checkXxxCapabilities로 차종 지원 여부를 확인하고 ② 지원하면 리스너를 등록한다.
+     * Pleos 서비스 연결은 비동기라 initialize 직후 호출이 실패할 수 있어, 응답이 없거나 실패한 채널은
+     * 1초 간격으로 최대 10번 다시 시도한다. 미지원으로 확인된 채널은 다시 시도하지 않는다.
      */
     private fun connectPleos() {
         val v = try {
@@ -186,30 +192,54 @@ class PleosVehicleDataSource(
             return
         }
         vehicle = v
-        val pending = linkedMapOf<String, () -> Unit>(
-            "brake" to { v.getBrake().registerBrakePedalStatus(brakeListener) },
-            "turnSignal" to { v.getTurnSignal().registerTurnSignalState(turnListener) },
-            "steering" to { v.getSteeringWheel().registerSteeringWheelAngle(steeringListener) },
-            "odometer" to { v.getOdometer().registerDistanceDriven(odometerListener) },
+        // 이름 → (지원 여부 확인, 등록)
+        val channelsToConnect: Map<String, Pair<(ok: () -> Unit, fail: (Exception) -> Unit) -> Unit, () -> Unit>> = linkedMapOf(
+            "brake" to Pair({ ok, fail -> v.getBrake().checkBrakePedalStatusCapabilities({ ok() }, fail) }, { v.getBrake().registerBrakePedalStatus(brakeListener) }),
+            "turnSignal" to Pair({ ok, fail -> v.getTurnSignal().checkTurnSignalStateCapabilities({ ok() }, fail) }, { v.getTurnSignal().registerTurnSignalState(turnListener) }),
+            "steering" to Pair({ ok, fail -> v.getSteeringWheel().checkSteeringWheelAngleCapabilities({ _, _ -> ok() }, fail) }, { v.getSteeringWheel().registerSteeringWheelAngle(steeringListener) }),
+            "odometer" to Pair({ ok, fail -> v.getOdometer().checkCurrentDistanceDrivenCapabilities({ ok() }, fail) }, { v.getOdometer().registerDistanceDriven(odometerListener) }),
         )
+        val done = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
         scope.launch(Dispatchers.Default) {
             repeat(10) { attempt ->
-                val it = pending.entries.iterator()
-                while (it.hasNext()) {
-                    val (name, register) = it.next()
+                channelsToConnect.filterKeys { it !in done }.forEach { (name, pair) ->
+                    val (check, register) = pair
                     try {
-                        register()
-                        Log.i(TAG, "registered $name (attempt ${attempt + 1})")
-                        it.remove()
+                        check({
+                            try {
+                                register()
+                                done += name
+                                Log.i(TAG, "registered $name (attempt ${attempt + 1})")
+                            } catch (e: Throwable) {
+                                Log.w(TAG, "register $name failed: ${e.javaClass.simpleName} ${e.message}")
+                            }
+                        }, { e ->
+                            Log.w(TAG, "$name capability check failed (attempt ${attempt + 1}): ${e.javaClass.simpleName} ${e.message}")
+                            if (e.isUnsupported()) {
+                                done += name
+                                unsupported += name
+                            }
+                        })
                     } catch (e: Throwable) {
-                        Log.w(TAG, "register $name failed (attempt ${attempt + 1}): ${e.javaClass.simpleName} ${e.message}")
+                        Log.w(TAG, "$name not ready (attempt ${attempt + 1}): ${e.javaClass.simpleName} ${e.message}")
                     }
                 }
-                if (pending.isEmpty()) return@launch
                 delay(1000)
+                if (done.size == channelsToConnect.size) {
+                    Log.i(TAG, "pleos channels settled; unsupported=$unsupported")
+                    return@launch
+                }
             }
-            Log.w(TAG, "gave up: ${pending.keys}")
+            Log.w(TAG, "gave up: ${channelsToConnect.keys - done}")
         }
+    }
+
+    /** 차종 미지원으로 확인된 채널 (요약에 ✗로 표시) */
+    private val unsupported = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    private fun Exception.isUnsupported(): Boolean {
+        val m = (message ?: "") + javaClass.simpleName
+        return listOf("not support", "unsupported", "NotSupported", "NOT_AVAILABLE", "not available").any { m.contains(it, ignoreCase = true) }
     }
 
     override fun stop() {
