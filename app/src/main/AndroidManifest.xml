@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Android Automotive OS 전용 앱 -->
+    <uses-feature android:name="android.hardware.type.automotive" android:required="true" />
+
+    <!-- AAOS 차량 속성: 속도(PERF_VEHICLE_SPEED) -->
+    <uses-permission android:name="android.car.permission.CAR_SPEED" />
+    <!-- AAOS 차량 속성: 기어(GEAR_SELECTION), 시동(IGNITION_STATE), 주차 브레이크(PARKING_BRAKE_ON) -->
+    <uses-permission android:name="android.car.permission.CAR_POWERTRAIN" />
+    <!-- 자이로가 없는 차량에서 좌우 가속을 GPS 방위각으로 추정 (M3) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.DataYou">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!--
+              주행 중 화면은 정적 아이콘 + 배지 1개만 표시하도록 설계했다(텍스트·애니메이션 없음).
+              실차 배포 전, Pleos Connect의 주행 중 표시 정책(오버레이/위젯 영역 사용 가능 여부)을 기술지원팀에 확인한다.
+            -->
+            <meta-data android:name="distractionOptimized" android:value="true" />
+        </activity>
+    </application>
+</manifest>

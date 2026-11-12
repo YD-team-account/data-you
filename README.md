@@ -16,6 +16,7 @@
 - [동작 방식](#동작-방식)
 - [원인 7종](#원인-7종)
 - [Pleos Connect SDK / API 사용 계획](#pleos-connect-sdk--api-사용-계획)
+- [AAOS 앱 (M2)](#aaos-앱-m2)
 - [인터랙티브 프로토타입](#인터랙티브-프로토타입)
 - [빠르게 실행해 보기](#빠르게-실행해-보기)
 - [시나리오 재생 결과](#시나리오-재생-결과)
@@ -105,6 +106,35 @@ Pleos SDK 정책(*AAOS 표준 API가 있으면 표준 우선, 제조사 특화 �
 엔진 코드는 안드로이드에 의존하지 않습니다. SDK가 어떤 값을 주든 [`VehicleSample`](core-engine/src/main/kotlin/team/datayou/engine/model/Models.kt) 하나로 변환해 넣으면 됩니다. 차종별로 API가 없으면 해당 필드를 `null`로 두고, 엔진이 대체 경로로 동작합니다(예: 브레이크 정보가 없으면 급감속은 급제동으로 판정).
 
 ---
+
+## AAOS 앱 (M2)
+
+엔진을 그대로 붙인 Android Automotive 앱입니다. 화면은 Jetpack Compose로 만들었습니다.
+
+| 출발 · 동승자 선택 | 주행 중 · 주의 |
+|---|---|
+| ![출발](docs/screenshots/1_start.png) | ![주행 중](docs/screenshots/2_driving_caution.png) |
+| **주행 중 · 힘듦 (연속 커브)** | **정차 시 · 코칭 카드** |
+| ![힘듦](docs/screenshots/3_driving_discomfort.png) | ![정차 카드](docs/screenshots/4_stop_card.png) |
+| **하차 · 주행 리포트** | |
+| ![리포트](docs/screenshots/5_report.png) | |
+
+> 스크린샷은 `./gradlew :app:testDebugUnitTest`가 Robolectric으로 실제 Compose 화면을 렌더링한 결과입니다. 화면 값은 엔진이 '가족 나들이' 시나리오(아이 + 반려견)를 계산한 값입니다.
+
+### 데이터 소스
+| 선택 | 구현 | 용도 |
+|---|---|---|
+| 시나리오 (가족 나들이 등 7종) | `ReplayDataSource` | `sample-data` CSV를 10Hz로 재생, 1·5·15배속 |
+| 실시간 차량 데이터 | `CarPropertyDataSource` | AAOS `CarPropertyManager` → `PERF_VEHICLE_SPEED` 구독 |
+| (M3) Pleos | `PleosVehicleDataSource` | + Vehicle SDK Brake·TurnSignal·Odometer, NaviHelper TBT, Gleo TTS |
+
+### 실행 방법
+1. Android Studio에서 이 폴더를 엽니다. (`local.properties`는 자동 생성됩니다.)
+2. Device Manager → **Automotive** 하드웨어로 AVD를 만듭니다. Pleos Connect Emulator나 Android Automotive 시스템 이미지 둘 다 됩니다.
+3. `app` 구성을 실행하거나, `gradlew.bat :app:installDebug`를 실행합니다.
+4. 실시간 모드에서는 에뮬레이터 Extended controls의 **Car data**에서 속도를 바꾸면 게이지가 반응합니다.
+
+빌드된 APK: `./gradlew :app:assembleDebug` → `app/build/outputs/apk/debug/app-debug.apk`
 
 ## 인터랙티브 프로토타입
 
@@ -207,7 +237,11 @@ data_you/
 ├── sample-data/                      # 시나리오 CSV (에뮬레이터 주입·시연용)
 ├── docs/                             # 설계 문서, prototype/ (인터랙티브 HTML)
 ├── tools/                            # 프로토타입 빌드 스크립트
-└── app/                              # (M2) AAOS 앱 — Compose UI + Pleos SDK 어댑터
+└── app/                              # AAOS 앱
+    └── src/main/kotlin/team/datayou/app/
+        ├── MainActivity.kt / DataYouViewModel.kt
+        ├── data/                     # ReplayDataSource, CarPropertyDataSource, FakeNavigation(TBT)
+        └── ui/                       # Start / Drive(칩·정차 카드) / Report, 아이콘(Canvas)
 ```
 
 ---
@@ -215,7 +249,7 @@ data_you/
 ## 마일스톤
 
 - [x] **M1 — 엔진**: 멀미 게이지, 원인 7종, 배지 규칙, 리포트, 시나리오 9종, 테스트 20개, 인터랙티브 프로토타입
-- [ ] **M2 — AAOS 앱**: 엔진 + Compose UI(주행 중 / 정차 / 리포트 / 프로필), CSV 재생 데이터 소스, APK
+- [x] **M2 — AAOS 앱**: 엔진 + Compose UI(출발 / 주행 중 / 정차 카드 / 리포트), CSV 재생·AAOS 실시간 데이터 소스, 효과음·TTS, 스크린샷 테스트, APK
 - [ ] **M3 — Pleos 연동**: Vehicle·NaviHelper·Gleo TTS 어댑터, Pleos Connect Emulator 시연 영상
 - [ ] **Todo**: Gleo STT·LLM, HVAC·Window 자동 케어, BLE 센서(위아래 흔들림), 멀미 위험 구간 지도
 
