@@ -23,6 +23,7 @@
 - [프로젝트 구조](#프로젝트-구조)
 - [마일스톤](#마일스톤)
 - [한계와 검증 계획](#한계와-검증-계획)
+- [설치 문제 해결 (AAOS 에뮬레이터)](docs/troubleshooting-aaos-install.md)
 
 ---
 
@@ -131,8 +132,12 @@ Pleos SDK 정책(*AAOS 표준 API가 있으면 표준 우선, 제조사 특화 �
 ### 실행 방법
 1. Android Studio에서 이 폴더를 엽니다. (`local.properties`는 자동 생성됩니다.)
 2. Device Manager → **Automotive** 하드웨어로 AVD를 만듭니다. Pleos Connect Emulator나 Android Automotive 시스템 이미지 둘 다 됩니다.
-3. `app` 구성을 실행하거나, `gradlew.bat :app:installDebug`를 실행합니다.
+3. `app` ▾ → Edit Configurations → **Install for all users**를 체크한 뒤 `app` 구성을 실행합니다. (또는 `tools\fix_install.bat` / `tools/fix_install.sh`)
 4. 실시간 모드에서는 에뮬레이터 Extended controls의 **Car data**에서 속도를 바꾸면 게이지가 반응합니다.
+
+> ⚠️ **`Activity class {team.datayou.app/...MainActivity} does not exist` 에러가 나면**
+> AAOS 멀티유저(시스템 0번 / 운전자 10번) 때문에 생기는 설치 문제입니다. 앱 코드 문제가 아닙니다.
+> → [AAOS 에뮬레이터 설치·실행 문제 해결](docs/troubleshooting-aaos-install.md)
 
 빌드된 APK: `./gradlew :app:assembleDebug` → `app/build/outputs/apk/debug/app-debug.apk`
 
@@ -235,8 +240,8 @@ data_you/
 │       ├── report/                   # 하차 리포트
 │       └── replay/                   # 합성 시나리오, CSV, 재생 CLI
 ├── sample-data/                      # 시나리오 CSV (에뮬레이터 주입·시연용)
-├── docs/                             # 설계 문서, prototype/ (인터랙티브 HTML)
-├── tools/                            # 프로토타입 빌드 스크립트
+├── docs/                             # 설계 문서, 설치 문제 해결, prototype/ (인터랙티브 HTML)
+├── tools/                            # 프로토타입 빌드, fix_install(.bat/.sh) 설치 복구
 └── app/                              # AAOS 앱
     └── src/main/kotlin/team/datayou/app/
         ├── MainActivity.kt / DataYouViewModel.kt
