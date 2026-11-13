@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -57,7 +58,11 @@ import kotlin.math.sin
 @Composable
 fun DriveScreen(s: Screen.Driving, vm: DataYouActions) {
     Box(Modifier.fillMaxSize().background(Palette.bg)) {
-        MapBackdrop(s.elapsedSec)
+        when {
+            !s.isReplay -> LiveMap(s.geo)
+            s.route != null -> ScenarioMap(s.route, s.tMs)
+            else -> MapBackdrop(s.elapsedSec)
+        }
 
         // 다음 안내 (M3: NaviHelper getTBTInfo)
         if (!s.stopped) {
@@ -72,7 +77,7 @@ fun DriveScreen(s: Screen.Driving, vm: DataYouActions) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    TurnArrow(Modifier.size(34.dp))
+                    TurnArrow(Modifier.size(34.dp), tbt.left)
                     Column {
                         Text("${(tbt.distanceM / 10).roundToInt() * 10}m", color = Palette.text, fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
                         Text(tbt.text, color = Palette.muted, fontSize = 15.sp)
@@ -215,16 +220,27 @@ private fun FeedbackButton(text: String, bg: Color, fg: Color, onClick: () -> Un
 }
 
 @Composable
-private fun TurnArrow(modifier: Modifier) {
+private fun TurnArrow(modifier: Modifier, left: Boolean?) {
     Canvas(modifier) {
         val s = size.minDimension / 24f
         val st = Stroke(width = 2.2f * s, cap = StrokeCap.Round)
         val p = Path().apply {
-            moveTo(7 * s, 20 * s); lineTo(7 * s, 11 * s)
-            quadraticBezierTo(7 * s, 7 * s, 11 * s, 7 * s); lineTo(19 * s, 7 * s)
-            moveTo(15 * s, 3 * s); lineTo(19 * s, 7 * s); lineTo(15 * s, 11 * s)
+            if (left == null) {
+                // 직진(목적지)
+                moveTo(12 * s, 21 * s); lineTo(12 * s, 4 * s)
+                moveTo(8 * s, 8 * s); lineTo(12 * s, 4 * s); lineTo(16 * s, 8 * s)
+            } else {
+                moveTo(7 * s, 20 * s); lineTo(7 * s, 11 * s)
+                quadraticBezierTo(7 * s, 7 * s, 11 * s, 7 * s); lineTo(19 * s, 7 * s)
+                moveTo(15 * s, 3 * s); lineTo(19 * s, 7 * s); lineTo(15 * s, 11 * s)
+            }
         }
-        drawPath(p, Palette.text, style = st)
+        if (left == true) {
+            // 좌회전은 좌우 반전
+            withTransform({ scale(-1f, 1f, center) }) { drawPath(p, Palette.text, style = st) }
+        } else {
+            drawPath(p, Palette.text, style = st)
+        }
     }
 }
 

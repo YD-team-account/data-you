@@ -24,10 +24,14 @@ class ReplayDataSource(
 ) : VehicleDataSource {
 
     private var job: Job? = null
+    @Volatile private var cached: List<VehicleSample>? = null
+
+    /** CSV 전체를 읽는다 (지도 경로 복원에도 쓰므로 한 번만 읽고 보관). IO 스레드에서 호출. */
+    fun loadSamples(): List<VehicleSample> = cached ?: load().also { cached = it }
 
     override fun start(onSample: (VehicleSample) -> Unit, onEnd: () -> Unit) {
         job = scope.launch(Dispatchers.Default) {
-            val samples = withContext(Dispatchers.IO) { load() }
+            val samples = withContext(Dispatchers.IO) { loadSamples() }
             var i = 0
             while (isActive && i < samples.size) {
                 val n = speedFactor.coerceAtLeast(1)

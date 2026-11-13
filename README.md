@@ -91,16 +91,17 @@ Pleos SDK 정책(*AAOS 표준 API가 있으면 표준 우선, 제조사 특화 �
 
 | 구분 | API | 용도 | 상태 |
 |---|---|---|---|
-| AAOS | `PERF_VEHICLE_SPEED` | 가감속·jerk 계산 | M2 |
-| AAOS | `GEAR_SELECTION`, `IGNITION_STATE`, `PARKING_BRAKE_ON` | 주행 시작·종료, 정차 | M2 |
-| AAOS | `CarUxRestrictionsManager` | 주행 중 화면 제약 준수 | M2 |
-| **Pleos Vehicle SDK** | `Brake` | 급제동 vs 회생 감속, 끊어 밟기 | M3 |
-| **Pleos Vehicle SDK** | `TurnSignal` | 급차선변경 vs 급회전 | M3 |
-| **Pleos Vehicle SDK** | `Odometer` | 10km당 이벤트 지표 | M3 |
-| **Pleos Vehicle SDK** | `Steeringwheel` | 좌우 추정 보조 (`checkCapability`) | M3 |
-| **Pleos NaviHelper SDK** | `getTBTInfo`, `addListener` | 다음 회전 예측 안내 | M3 |
-| **Pleos NaviHelper SDK** | `getCurrentLocationInfo` | 리포트 지도 | M3 |
-| **Gleo AI SDK** | TTS | 정차 시 음성 코칭 | M3 |
+| AAOS | `PERF_VEHICLE_SPEED` | 가감속·jerk 계산 | ✅ |
+| **Pleos Vehicle SDK 2.3.2** | `Brake` | 급제동 vs 회생 감속, 끊어 밟기 | ✅ (`check…Capabilities` 후 연결) |
+| **Pleos Vehicle SDK** | `TurnSignal` | 급차선변경 vs 급회전 | ✅ |
+| **Pleos Vehicle SDK** | `SteeringWheel` | 핸들 각도 → 회전 속도 → 좌우 가속 | ✅ |
+| **Pleos Vehicle SDK** | `Odometer` | 리포트 주행거리, 10km당 이벤트 | ✅ |
+| **Pleos NaviHelper SDK 3.0.5** | `addListener`(onTBTInfo), `getTBTInfo` | 다음 회전 예측 안내 | ✅ |
+| AAOS (대체 경로) | `PERF_STEERING_ANGLE`, `TURN_SIGNAL_STATE` | Pleos 미탑재 환경에서 핸들·깜빡이 | ✅ |
+| Android | GPS (`LocationManager`) | 실시간 지도 위치, 핸들 각도가 없을 때 좌우 판단 | ✅ |
+| AAOS | `GEAR_SELECTION`, `IGNITION_STATE`, `PARKING_BRAKE_ON` | 주행 자동 시작·종료 | PT |
+| AAOS | `CarUxRestrictionsManager` | 주행 중 화면 제약 연동 | PT |
+| **Gleo AI SDK** | TTS (ON_DEVICE) | 정차 시 음성 코칭 (현재 Android TTS) | PT |
 | Gleo AI SDK | STT, LLM | "속 안 좋아" 음성 보정, 리포트 요약 | Todo |
 | Pleos Vehicle SDK | HVAC, Window | 외기 유입·창문 자동 케어 | Todo |
 
@@ -108,7 +109,7 @@ Pleos SDK 정책(*AAOS 표준 API가 있으면 표준 우선, 제조사 특화 �
 
 ---
 
-## AAOS 앱 (M2)
+## AAOS 앱 (M2·M3)
 
 엔진을 그대로 붙인 Android Automotive 앱입니다. 화면은 Jetpack Compose로 만들었습니다.
 
@@ -126,14 +127,36 @@ Pleos SDK 정책(*AAOS 표준 API가 있으면 표준 우선, 제조사 특화 �
 | 선택 | 구현 | 용도 |
 |---|---|---|
 | 시나리오 (가족 나들이 등 7종) | `ReplayDataSource` | `sample-data` CSV를 10Hz로 재생, 1·5·15배속 |
-| 실시간 차량 데이터 | `CarPropertyDataSource` | AAOS `CarPropertyManager` → `PERF_VEHICLE_SPEED` 구독 |
-| (M3) Pleos | `PleosVehicleDataSource` | + Vehicle SDK Brake·TurnSignal·Odometer, NaviHelper TBT, Gleo TTS |
+| 실시간 차량 데이터 | `PleosVehicleDataSource` | AAOS 속도 + Pleos Vehicle SDK(브레이크·깜빡이·핸들·주행거리), 없으면 AAOS 표준 속성으로 대체 |
+| 회전 안내 | `RouteNavigation` / `PleosNavigation` | 재생: 데이터에서 복원한 실제 회전 지점 · 실시간: NaviHelper TBT |
+
+### 지도
+- **시나리오 모드: 데이터로 그린 지도.** 각 시나리오의 속도·회전 데이터로 실제 지나간 길을 복원(추측 항법)하고, 그 길만 그립니다(`RouteGeometry`, `ScenarioMap`). 그래서 화면의 커브와 게이지 반응이 정확히 맞습니다. 도로 유형은 데이터로 자동 판별합니다.
+  - 시내: 건물 블록·교차로·정지선과 신호등, 정체 시 앞차 행렬
+  - 고속도로: 3차로·가드레일, 차선 변경은 한 차로 이동으로 표시
+  - 굽이길(산길·강변): 숲 사이 2차로, 커브가 잘 보이도록 확대
+  - 회전 안내(TBT)도 복원한 경로의 실제 회전 지점까지 거리입니다.
+- **실시간 모드: 실제 지도.** OpenStreetMap 데이터의 어두운 지도(CARTO 타일)를 osmdroid로 띄우고 GPS 위치를 따라갑니다. 구글 서비스·API 키가 필요 없어 Pleos 에뮬레이터와 실차에서 동작합니다.
+  - GPS가 움직이면(실차, 에뮬레이터 `⋯ ▸ Location ▸ Routes` 경로 재생) GPS 위치·방위를 쓰고, 차량 속도가 0이면 GPS 속도로 대신합니다.
+  - GPS가 멈춰 있는데 차량 신호만 들어오면(`tools\sway_demo.bat`) 마지막 위치에서 속도·회전으로 추정 이동합니다. 이 경우 실제 도로를 따라가지는 않습니다.
+
+| 산길 연속 커브 | 고속도로 급차선변경 |
+|---|---|
+| ![산길](docs/screenshots/maps/map_mountain.png) | ![차선 변경](docs/screenshots/maps/map_highway_lane_change.png) |
+| **시내 정차 (신호등)** | **정체 가다 서다 (앞차 행렬)** |
+| ![시내](docs/screenshots/maps/map_city_stop.png) | ![정체](docs/screenshots/maps/map_traffic.png) |
+| **가족 나들이 · 교차로 우회전 안내** | **가족 나들이 · 강변 커브 (게이지 힘듦)** |
+| ![교차로](docs/screenshots/maps/map_family_turn.png) | ![강변](docs/screenshots/maps/map_family_curves.png) |
 
 ### 실행 방법
 1. Android Studio에서 이 폴더를 엽니다. (`local.properties`는 자동 생성됩니다.)
 2. Device Manager → **Automotive** 하드웨어로 AVD를 만듭니다. Pleos Connect Emulator나 Android Automotive 시스템 이미지 둘 다 됩니다.
 3. `app` ▾ → Edit Configurations → **Install for all users**를 체크한 뒤 `app` 구성을 실행합니다. (또는 `tools\fix_install.bat` / `tools/fix_install.sh`)
-4. 실시간 모드에서는 에뮬레이터 Extended controls의 **Car data**에서 속도를 바꾸면 게이지가 반응합니다.
+4. 처음 실행하면 권한 창이 뜹니다. 차량 속도·핸들·위치 권한을 모두 **허용**하세요.
+5. 실시간 모드 시연
+   - 차량 신호 주입: `tools\sway_demo.bat` — 속도·핸들·깜빡이를 약 2분간 넣어 연속 커브와 급차선변경을 재현합니다(동승자 '아이' 권장).
+   - 실제 도로 주행: 에뮬레이터 `⋯ ▸ Location ▸ Routes`에서 경로를 만들어 재생하면 실제 지도 위를 GPS로 달립니다.
+   - 수동: 에뮬레이터 `⋯ ▸ Car data`에서 속도를 바꿉니다.
 
 > ⚠️ **`Activity class {team.datayou.app/...MainActivity} does not exist` 에러가 나면**
 > AAOS 멀티유저(시스템 0번 / 운전자 10번) 때문에 생기는 설치 문제입니다. 앱 코드 문제가 아닙니다.
@@ -211,17 +234,17 @@ timestamp_ms,speed_mps,yaw_rate_rad_s,heading_deg,brake,turn_signal
 
 | 시나리오 | 최고 게이지 | 감지된 원인 | 다음 주행 팁 |
 |---|---|---|---|
-| `family_trip` | 100 | 브레이크 급제동 2, 회생·관성 급감속 3, 급출발 2, 좌우 흔들림(연속 커브) 3, 정체 가다 서다 1 | 커브 앞에서 미리 속도를 줄여보세요 |
+| `family_trip` | 82 | 브레이크 급제동 2, 회생·관성 급감속 3, 급출발 1, 좌우 흔들림(연속 커브) 3, 정체 가다 서다 1 | 커브 앞에서 미리 속도를 줄여보세요 |
 | `smooth_highway` | 0 | - | - |
 | `city_aggressive` | 100 | 브레이크 급제동 6, 급출발 6 | 브레이크를 조금 일찍, 약하게 밟아보세요 |
 | `ev_strong_regen` | 50 | 회생·관성 급감속 5 | 회생제동 단계를 한 단계 낮춰보세요 |
 | `traffic_stop_and_go` | 13 | 정체 가다 서다 2 | - *(운전자 탓 아님)* |
 | `brake_pumping` | 8 | 브레이크 끊어 밟기 2 | 한 번에 부드럽게 밟아보세요 |
-| `mountain_curves` | 100 | 좌우 흔들림(연속 커브) 5 | 커브 앞에서 미리 속도를 줄여보세요 |
-| `mountain_curves_gps_only` | 92 | 좌우 흔들림(연속 커브) 5 | 커브 앞에서 미리 속도를 줄여보세요 |
-| `abrupt_lane_change` | 9 | 급차선변경·급회전 1 | 차선 변경과 회전은 여유 있게 해주세요 |
+| `mountain_curves` | 93 | 좌우 흔들림(연속 커브) 6 | 커브 앞에서 미리 속도를 줄여보세요 |
+| `mountain_curves_gps_only` | 89 | 좌우 흔들림(연속 커브) 6 | 커브 앞에서 미리 속도를 줄여보세요 |
+| `abrupt_lane_change` | 10 | 급차선변경·급회전 1 | 차선 변경과 회전은 여유 있게 해주세요 |
 
-> 합성 데이터이므로 수치 자체보다 **원인이 의도대로 구분되는지**를 보여주는 용도입니다.
+> 합성 데이터이므로 수치 자체보다 **원인이 의도대로 구분되는지**를 보여주는 용도입니다. 커브 시나리오는 실제 도로 형상(시속 40km, 반경 50~80m, 45~80도 커브)으로 만들어 지도에 그대로 그릴 수 있습니다. 자이로 없이 GPS 방위각만 써도 같은 결과가 나옵니다.
 
 ---
 
@@ -241,12 +264,12 @@ data_you/
 │       └── replay/                   # 합성 시나리오, CSV, 재생 CLI
 ├── sample-data/                      # 시나리오 CSV (에뮬레이터 주입·시연용)
 ├── docs/                             # 설계 문서, 설치 문제 해결, prototype/ (인터랙티브 HTML)
-├── tools/                            # 프로토타입 빌드, fix_install(.bat/.sh) 설치 복구
+├── tools/                            # 프로토타입 빌드, 설치 복구, Pleos 진단, 좌우 흔들림 주입(sway_demo)
 └── app/                              # AAOS 앱
     └── src/main/kotlin/team/datayou/app/
         ├── MainActivity.kt / DataYouViewModel.kt
-        ├── data/                     # ReplayDataSource, CarPropertyDataSource, FakeNavigation(TBT)
-        └── ui/                       # Start / Drive(칩·정차 카드) / Report, 아이콘(Canvas)
+        ├── data/                     # Replay·PleosVehicle 데이터 소스, RouteGeometry(경로 복원), LiveLocator(GPS), TBT
+        └── ui/                       # Start / Drive(칩·정차 카드) / Report, ScenarioMap, LiveMap(OSM)
 ```
 
 ---
@@ -255,7 +278,8 @@ data_you/
 
 - [x] **M1 — 엔진**: 멀미 게이지, 원인 7종, 배지 규칙, 리포트, 시나리오 9종, 테스트 20개, 인터랙티브 프로토타입
 - [x] **M2 — AAOS 앱**: 엔진 + Compose UI(출발 / 주행 중 / 정차 카드 / 리포트), CSV 재생·AAOS 실시간 데이터 소스, 효과음·TTS, 스크린샷 테스트, APK
-- [ ] **M3 — Pleos 연동**: Vehicle·NaviHelper·Gleo TTS 어댑터, Pleos Connect Emulator 시연 영상
+- [x] **M3 — Pleos 연동 (코드)**: Vehicle SDK 4종·NaviHelper TBT 연결, AAOS 대체 경로, 데이터 기반 시나리오 지도, 실시간 OSM 지도, 차량 신호 주입 도구
+- [ ] **M3 — 시연**: Pleos Connect Emulator 검증·시연 영상, Gleo TTS 교체
 - [ ] **Todo**: Gleo STT·LLM, HVAC·Window 자동 케어, BLE 센서(위아래 흔들림), 멀미 위험 구간 지도
 
 ---
@@ -267,7 +291,8 @@ data_you/
   1. 시내·산길·고속도로 데이터를 CSV로 수집
   2. 엔진에 재생
   3. 수동 라벨과 비교
-- **GPS만 쓰는 경우의 한계:** 자이로가 없는 차량은 GPS 방위각(약 1Hz)으로 좌우 가속을 추정합니다. 그래서 짧은 차선 변경은 놓칠 수 있습니다.
+- **GPS만 쓰는 경우의 한계:** 핸들 각도를 못 받는 차량은 GPS 방위각(약 1Hz)으로 좌우 가속을 추정합니다. 그래서 짧은 차선 변경은 놓칠 수 있습니다.
+- **실시간 지도 타일:** 인터넷 연결이 필요합니다(OpenStreetMap·CARTO). 오프라인에서는 지도 없이 위치 화살표만 보입니다.
 - **ISO 2631-1의 한계:** 이 모델은 차량 멀미 예측에 한계가 있다고 알려져 있습니다. 그래서 출발점으로만 쓰고 개인 보정으로 보완합니다.
 
 ### 참고 문헌

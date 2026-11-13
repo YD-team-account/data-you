@@ -9,7 +9,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import team.datayou.app.data.TbtInfo
+import team.datayou.app.data.RouteGeometry
+import team.datayou.app.data.RouteNavigation
 import team.datayou.app.ui.DataYouTheme
 import team.datayou.app.ui.DriveScreen
 import team.datayou.app.ui.ReportScreen
@@ -51,18 +52,26 @@ class ScreenshotTest {
         return Scenarios.familyTrip().mapNotNull { e.process(it) } to e
     }
 
-    private fun driving(u: EngineUpdate, pre: Boolean = false) = Screen.Driving(
-        sourceLabel = "가족 나들이",
-        focus = u.focusPassenger,
-        badge = u.badge,
-        speedKmh = Math.round(u.speedMps * 3.6).toInt(),
-        stopped = u.vehicleStopped,
-        tbt = TbtInfo(if (pre) 240.0 else 820.0, true, "우회전 · 강변로"),
-        preAlert = false,
-        stopCard = u.stopCard,
-        elapsedSec = u.timestampMs / 1000.0,
-        speedFactor = 5,
-    )
+    private val familySamples = Scenarios.familyTrip()
+    private val familyRoute = RouteGeometry.from(familySamples)
+
+    private fun driving(u: EngineUpdate, pre: Boolean = false): Screen.Driving {
+        val sample = familySamples.last { it.timestampMs <= u.timestampMs }
+        return Screen.Driving(
+            sourceLabel = "가족 나들이",
+            focus = u.focusPassenger,
+            badge = u.badge,
+            speedKmh = Math.round(u.speedMps * 3.6).toInt(),
+            stopped = u.vehicleStopped,
+            tbt = RouteNavigation(familyRoute).update(sample),
+            preAlert = pre,
+            stopCard = u.stopCard,
+            elapsedSec = u.timestampMs / 1000.0,
+            speedFactor = 5,
+            route = familyRoute,
+            tMs = u.timestampMs,
+        )
+    }
 
     @Test
     fun start() {

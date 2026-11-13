@@ -85,7 +85,7 @@ class EngineScenarioTest {
     }
 
     @Test
-    fun `0_2Hz 연속 커브는 아이 게이지를 힘듦까지 올린다`() {
+    fun `산길 연속 커브는 아이 게이지를 힘듦까지 올린다`() {
         val r = run(Scenarios.mountainCurves())
         assertTrue(r.count(Cause.CONTINUOUS_CURVES) >= 1)
         assertTrue(r.updates.any { it.focusPassenger.level == GaugeLevel.DISCOMFORT })
@@ -97,6 +97,9 @@ class EngineScenarioTest {
         val r = run(Scenarios.mountainCurves(gpsOnly = true))
         assertTrue(r.count(Cause.CONTINUOUS_CURVES) >= 1)
         assertTrue(r.peak >= 70.0, "peak=${r.peak}")
+        // 1Hz 방위각을 고정 주기로 나누면 각속도가 부풀려져 가짜 '급회전'이 생겼던 회귀 방지
+        val gyro = run(Scenarios.mountainCurves())
+        assertTrue(r.count(Cause.SHARP_LATERAL) <= gyro.count(Cause.SHARP_LATERAL) + 1, "gps=${r.count(Cause.SHARP_LATERAL)} gyro=${gyro.count(Cause.SHARP_LATERAL)}")
     }
 
     @Test

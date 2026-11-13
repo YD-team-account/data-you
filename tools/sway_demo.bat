@@ -15,6 +15,8 @@ if exist "%APK%" (
   "%ADB%" uninstall team.datayou.app >nul 2>&1
   "%ADB%" install -r -g --user all "%APK%"
 )
+rem 실시간 지도 시작 위치: 서울시청 앞 세종대로 (북쪽 방향). GPS가 멈춰 있으면 앱이 차량 신호로 위치를 추정 이동한다.
+"%ADB%" emu geo fix 126.97790 37.56630 >nul 2>&1
 "%ADB%" shell am start --user current -n team.datayou.app/.MainActivity >nul 2>&1
 
 echo ===================================================================

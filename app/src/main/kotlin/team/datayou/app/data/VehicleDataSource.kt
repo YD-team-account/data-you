@@ -21,7 +21,8 @@ interface VehicleDataSource {
  * 다음 회전 안내(TBT) 정보. 실시간 모드는 NaviHelper(`PleosNavigation`),
  * 재생 모드는 주행거리 기반 가짜 안내(`FakeNavigation`)를 쓴다.
  */
-data class TbtInfo(val distanceM: Double, val isTurn: Boolean, val text: String)
+/** @param left 회전 방향 (true 왼쪽, false 오른쪽, null 직진·모름) */
+data class TbtInfo(val distanceM: Double, val isTurn: Boolean, val text: String, val left: Boolean? = false)
 
 class FakeNavigation(private val intervalM: Double = 1200.0) : NavigationSource {
     private var distM = 0.0

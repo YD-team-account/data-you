@@ -55,6 +55,9 @@ dependencies {
     implementation("ai.pleos.playground:Vehicle:2.3.2")
     implementation("ai.pleos.playground:NaviHelper:3.0.5")
 
+    // 실시간 모드 실제 지도 (OpenStreetMap, 키·구글 서비스 불필요)
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
+
     val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")

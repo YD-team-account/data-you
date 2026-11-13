@@ -26,6 +26,7 @@ class MainActivity : ComponentActivity() {
         "android.car.permission.CAR_SPEED",
         "android.car.permission.READ_CAR_STEERING",
         "android.car.permission.CAR_EXTERIOR_LIGHTS",
+        "android.permission.ACCESS_FINE_LOCATION",
         "pleos.car.permission.CAR_DRIVE",
         "pleos.car.permission.CAR_LIGHTS",
     )

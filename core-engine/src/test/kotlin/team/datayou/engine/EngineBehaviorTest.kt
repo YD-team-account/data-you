@@ -12,6 +12,7 @@ import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /** UI 규칙(배지 유지·효과음)과 부가 기능을 검증한다. */
@@ -56,7 +57,11 @@ class EngineBehaviorTest {
     fun `예측 안내는 주의 이상이고 회전이 300m 안일 때만 켜진다`() {
         val engine = DataYouEngine(listOf(PassengerProfile("p", PassengerType.CHILD)))
         assertFalse(engine.shouldPreAlert(200.0, isTurnManeuver = true), "편안할 때는 안내 안 함")
-        Scenarios.mountainCurves().take(1500).forEach { engine.process(it) }
+        // 게이지가 '주의'에 처음 도달할 때까지 주행
+        val reached = Scenarios.mountainCurves().asSequence()
+            .mapNotNull { engine.process(it) }
+            .firstOrNull { it.focusPassenger.level.ordinal >= 1 }
+        assertNotNull(reached, "산길에서 '주의'에 도달해야 함")
         assertTrue(engine.shouldPreAlert(200.0, isTurnManeuver = true))
         assertFalse(engine.shouldPreAlert(500.0, isTurnManeuver = true))
         assertFalse(engine.shouldPreAlert(200.0, isTurnManeuver = false))

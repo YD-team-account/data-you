@@ -88,6 +88,37 @@ class ScenarioBuilder(
         }
     }
 
+    /**
+     * 실제 도로 형상의 연속 커브. 각 커브는 (회전각 도, 반경 m)이고 부호가 +면 왼쪽.
+     * 직선 → 원호 사이는 [easeSec] 동안 회전 속도를 서서히 올리고 내린다(완화곡선).
+     * 좌우 가속 = v² / R. 지도에 그리면 실제 굽은 길이 된다.
+     */
+    fun winding(curves: List<Pair<Double, Double>>, easeSec: Double = 1.0, straightSec: Double = 0.3): ScenarioBuilder = apply {
+        for ((angleDeg, radius) in curves) {
+            if (v < 0.5) continue
+            val dir = if (angleDeg >= 0) 1.0 else -1.0
+            val targetYaw = dir * v / radius
+            val totalRad = Math.toRadians(kotlin.math.abs(angleDeg))
+            val easeN = (easeSec * hz).toInt().coerceAtLeast(1)
+            // 완화 구간 두 번이 만드는 회전량 = |targetYaw| * easeSec
+            val holdSec = max(0.0, (totalRad - kotlin.math.abs(targetYaw) * easeSec) / kotlin.math.abs(targetYaw))
+            for (i in 1..easeN) push(targetYaw * i / easeN, false)
+            repeat((holdSec * hz).toInt()) { push(targetYaw, false) }
+            for (i in easeN - 1 downTo 0) push(targetYaw * i / easeN, false)
+            repeat((straightSec * hz).toInt()) { push(0.0, false) }
+        }
+    }
+
+    /** 교차로 회전 1회: 감속 → 90도 회전 → 재가속. 왼쪽이 +. */
+    fun turnAtIntersection(angleDeg: Double, turnSpeed: Double = 18 / 3.6, radius: Double = 14.0, resumeSpeed: Double = v): ScenarioBuilder = apply {
+        decelTo(turnSpeed, 1.5, brake = true)
+        val signal = if (angleDeg >= 0) TurnSignal.LEFT else TurnSignal.RIGHT
+        val yaw = (if (angleDeg >= 0) 1.0 else -1.0) * v / radius
+        val n = (Math.toRadians(kotlin.math.abs(angleDeg)) / kotlin.math.abs(yaw) * hz).toInt()
+        repeat(n) { push(yaw, false, signal) }
+        accelTo(resumeSpeed, 1.5)
+    }
+
     /** 차선 변경 1회 (좌우 가속 펄스). signal=true면 깜빡이를 1.5초 전부터 켬. */
     fun laneChange(latPeak: Double, durationSec: Double = 2.0, signal: Boolean): ScenarioBuilder = apply {
         if (signal) repeat((1.5 * hz).toInt()) { push(0.0, false, TurnSignal.LEFT) }

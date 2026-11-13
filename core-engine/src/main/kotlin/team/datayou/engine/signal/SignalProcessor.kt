@@ -61,28 +61,37 @@ class SignalProcessor(private val config: EngineConfig = EngineConfig()) {
         )
     }
 
+    /**
+     * GPS 방위각(보통 1Hz)으로 각속도를 구한다.
+     * 값이 새로 바뀐 순간끼리의 실제 간격으로 나눠야 한다. 고정 주기(0.9초)로 나누면
+     * 갱신 주기와 어긋나 각속도가 부풀려지고(약 11%) 가짜 '급회전'이 생긴다.
+     * 방위각이 1.5초 넘게 그대로면 직진으로 본다.
+     */
     private fun updateHeading(s: VehicleSample) {
         val h = s.headingDeg ?: return
         val prevH = lastHeadingDeg
         val prevT = lastHeadingTs
-        if (prevH != null && prevT != null) {
-            // GPS 방위각은 보통 1Hz로 갱신되므로 약 1초마다 각속도를 다시 계산 (0/360 경계 보정)
-            val dtH = (s.timestampMs - prevT) / 1000.0
-            if (dtH >= GPS_HEADING_INTERVAL_SEC) {
+        if (prevH == null || prevT == null) {
+            lastHeadingDeg = h
+            lastHeadingTs = s.timestampMs
+            return
+        }
+        val dtH = (s.timestampMs - prevT) / 1000.0
+        if (h != prevH) {
+            if (dtH > 0) {
                 var d = h - prevH
                 if (d > 180) d -= 360
                 if (d < -180) d += 360
                 headingYawRate = (d * PI / 180.0) / dtH
-                lastHeadingDeg = h
-                lastHeadingTs = s.timestampMs
             }
-        } else {
             lastHeadingDeg = h
             lastHeadingTs = s.timestampMs
+        } else if (dtH > GPS_STRAIGHT_AFTER_SEC) {
+            headingYawRate = 0.0
         }
     }
 
     private companion object {
-        const val GPS_HEADING_INTERVAL_SEC = 0.9
+        const val GPS_STRAIGHT_AFTER_SEC = 1.5
     }
 }

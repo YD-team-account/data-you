@@ -6,10 +6,17 @@ import android.media.ToneGenerator
 import android.speech.tts.TextToSpeech
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import team.datayou.app.data.FakeNavigation
+import team.datayou.app.data.GeoFix
+import team.datayou.app.data.LiveLocator
+import team.datayou.app.data.RouteGeometry
+import team.datayou.app.data.RouteNavigation
 import team.datayou.app.data.NavigationSource
 import team.datayou.app.data.PleosNavigation
 import team.datayou.app.data.PleosVehicleDataSource
@@ -51,6 +58,12 @@ sealed interface Screen {
         val liveProblem: String? = null,
         /** 실시간 모드의 채널 수신 상태 (데모 막대에 표시) */
         val channels: String? = null,
+        /** 재생 모드: 주행 데이터로 복원한 경로 (시나리오 지도) */
+        val route: RouteGeometry? = null,
+        /** 현재 샘플 시각(ms) */
+        val tMs: Long = 0,
+        /** 실시간 모드: 실제 지도 위 현재 위치 */
+        val geo: GeoFix? = null,
     ) : Screen
 
     data class Report(val report: TripReport, val sourceLabel: String) : Screen
@@ -65,6 +78,8 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
     private var source: VehicleDataSource? = null
     private var nav: NavigationSource = FakeNavigation()
     private var cardShownAtMs: Long? = null
+    private var locator: LiveLocator? = null
+    @Volatile private var speedFromGps = false
 
     // ── 효과음·음성 (M3에서 음성은 Gleo AI TTS로 교체) ──
     private val tone = runCatching { ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80) }.getOrNull()
@@ -89,6 +104,7 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
         engine = DataYouEngine(profiles)
         nav.release()
         nav = if (s.live) PleosNavigation(getApplication()) else FakeNavigation()
+        speedFromGps = false
         cardShownAtMs = null
         val src: VehicleDataSource = if (s.live) {
             PleosVehicleDataSource(getApplication(), viewModelScope)
@@ -97,7 +113,19 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
         }
         source = src
         _screen.value = Screen.Driving(sourceLabel = src.label, isReplay = !s.live, speedFactor = if (s.live) 1 else 5)
-        src.start(onSample = ::onSample, onEnd = ::finishTrip)
+        if (src is ReplayDataSource) {
+            // 시나리오 지도·회전 안내를 데이터에서 복원한 실제 경로로 만든 뒤 재생을 시작한다
+            viewModelScope.launch {
+                val route = withContext(Dispatchers.Default) { RouteGeometry.from(src.loadSamples()) }
+                nav = RouteNavigation(route)
+                _screen.update { d -> if (d is Screen.Driving) d.copy(route = route) else d }
+                src.start(onSample = ::onSample, onEnd = ::finishTrip)
+            }
+        } else {
+            locator?.stop()
+            locator = LiveLocator(getApplication()).also { it.start() }
+            src.start(onSample = ::onSample, onEnd = ::finishTrip)
+        }
     }
 
     override fun setSpeedFactor(f: Int) {
@@ -117,6 +145,8 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
         val src = source
         src?.stop()
         nav.release()
+        locator?.stop()
+        locator = null
         val e = engine ?: return
         val label = (screen.value as? Screen.Driving)?.sourceLabel ?: ""
         // 실시간 모드는 Pleos 주행거리(Odometer)를 쓰고, 없으면 엔진의 속도 적분값을 쓴다
@@ -128,13 +158,25 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
     override fun backToStart() {
         source?.stop()
         nav.release()
+        locator?.stop()
+        locator = null
         engine = null
         _screen.value = Screen.Start()
     }
 
     // ── 엔진 연결 ──
-    private fun onSample(sample: team.datayou.engine.model.VehicleSample) {
+    private fun onSample(raw: team.datayou.engine.model.VehicleSample) {
         val e = engine ?: return
+        // 실시간 모드 대체 경로: 차량 속도가 0인데 GPS가 움직이면 GPS 속도, 핸들 각도가 없으면 GPS 방위
+        val loc = locator
+        var sample = raw
+        if (loc != null) {
+            val gpsV = loc.gpsSpeedIfMoving()
+            speedFromGps = raw.speedMps < 0.1 && gpsV != null && gpsV > 2.0
+            if (speedFromGps) sample = sample.copy(speedMps = gpsV!!)
+            if (sample.yawRateRadPs == null) loc.gpsHeadingIfMoving()?.let { sample = sample.copy(headingDeg = it) }
+        }
+        val geo = loc?.update(sample)
         val u = e.process(sample) ?: return
         val tbt = nav.update(sample)
         val pre = tbt != null && !u.vehicleStopped && e.shouldPreAlert(tbt.distanceM, tbt.isTurn)
@@ -169,8 +211,11 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
                 elapsedSec = u.timestampMs / 1000.0,
                 liveProblem = (source as? PleosVehicleDataSource)?.problem,
                 channels = (source as? PleosVehicleDataSource)?.let { p ->
-                    p.channelSummary() + " 내비" + if ((nav as? PleosNavigation)?.received == true) "✓" else "–"
+                    p.channelSummary() + " 내비" + (if ((nav as? PleosNavigation)?.received == true) "✓" else "–") +
+                        " GPS" + (if (geo?.gpsMoving == true) "✓" else "–") + (if (speedFromGps) " · 속도=GPS" else "")
                 },
+                tMs = u.timestampMs,
+                geo = geo ?: s.geo,
             )
         }
     }
@@ -188,6 +233,7 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
     override fun onCleared() {
         source?.stop()
         nav.release()
+        locator?.stop()
         tts.shutdown()
         tone?.release()
     }
