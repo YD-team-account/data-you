@@ -47,7 +47,8 @@ sealed interface Screen {
         val elapsedSec: Double = 0.0,
         val speedFactor: Int = 1,
         val isReplay: Boolean = true,
-        val liveUnavailable: Boolean = false,
+        /** 실시간 모드에서 속도를 못 받을 때 이유 */
+        val liveProblem: String? = null,
         /** 실시간 모드의 채널 수신 상태 (데모 막대에 표시) */
         val channels: String? = null,
     ) : Screen
@@ -166,7 +167,7 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
                 stopCard = card,
                 feedbackNote = note,
                 elapsedSec = u.timestampMs / 1000.0,
-                liveUnavailable = (source as? PleosVehicleDataSource)?.available == false,
+                liveProblem = (source as? PleosVehicleDataSource)?.problem,
                 channels = (source as? PleosVehicleDataSource)?.let { p ->
                     p.channelSummary() + " 내비" + if ((nav as? PleosNavigation)?.received == true) "✓" else "–"
                 },

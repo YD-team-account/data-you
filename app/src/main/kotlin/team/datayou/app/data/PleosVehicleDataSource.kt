@@ -64,8 +64,8 @@ class PleosVehicleDataSource(
     /** 데모 막대 표시용: ✓ 수신 중, – 아직 없음, ✗ 차종 미지원 */
     fun channelSummary(): String = channels.summary(unsupported)
 
-    /** 속도 채널 연결 실패 (Car 서비스·권한 문제) */
-    @Volatile var available: Boolean = true
+    /** 속도 채널 연결 실패 이유. null이면 정상. */
+    @Volatile var problem: String? = null
         private set
 
     @Volatile private var speedMps = 0.0
@@ -172,10 +172,14 @@ class PleosVehicleDataSource(
             car = c
             val pm = c.getCarManager(Car.PROPERTY_SERVICE) as CarPropertyManager
             propertyManager = pm
-            available = pm.registerCallback(speedCallback, VehiclePropertyIds.PERF_VEHICLE_SPEED, CarPropertyManager.SENSOR_RATE_FASTEST)
+            val ok = pm.registerCallback(speedCallback, VehiclePropertyIds.PERF_VEHICLE_SPEED, CarPropertyManager.SENSOR_RATE_FASTEST)
+            if (!ok) problem = "차량 속도 신호를 지원하지 않는 환경이에요"
+        } catch (e: SecurityException) {
+            Log.w(TAG, "AAOS speed permission denied", e)
+            problem = "속도 권한이 없어요 · 앱을 다시 열어 '허용'을 눌러 주세요"
         } catch (e: Exception) {
             Log.w(TAG, "AAOS speed unavailable", e)
-            available = false
+            problem = "Car 서비스에 연결할 수 없어요 · 자동차용 에뮬레이터인지 확인하세요"
         }
     }
 

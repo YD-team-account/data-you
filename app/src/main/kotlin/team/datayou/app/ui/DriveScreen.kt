@@ -122,9 +122,9 @@ fun DriveScreen(s: Screen.Driving, vm: DataYouActions) {
             exit = fadeOut(),
         ) { s.stopCard?.let { StopCardView(it, s.feedbackNote, vm) } }
 
-        if (s.liveUnavailable) {
+        s.liveProblem?.let { problem ->
             Text(
-                "차량 속도를 받을 수 없어요 · Car 서비스/권한을 확인하세요",
+                problem,
                 color = Palette.caution, fontSize = 14.sp,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 20.dp).background(Palette.chip, RoundedCornerShape(10.dp)).padding(10.dp),
             )
