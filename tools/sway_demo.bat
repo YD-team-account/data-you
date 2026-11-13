@@ -9,7 +9,16 @@ set LOG=%CD%\dist\sway_demo_log.txt
 set ADB=%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe
 if not exist "%ADB%" set ADB=adb
 
+set APK=dist\datayou-m3-debug.apk
+if exist "%APK%" (
+  echo 최신 APK 설치 중: %APK%
+  "%ADB%" uninstall team.datayou.app >nul 2>&1
+  "%ADB%" install -r -g --user all "%APK%"
+)
+"%ADB%" shell am start --user current -n team.datayou.app/.MainActivity >nul 2>&1
+
 echo ===================================================================
+echo  0. 권한 창이 뜨면 모두 "허용"
 echo  1. 다타유 앱에서 동승자 "아이" 하나만 선택
 echo  2. "실시간 차량 데이터" 선택 후 "출발"
 echo  3. 주행 화면이 보이면 이 창에서 아무 키나 누르세요 (약 2분 진행)
