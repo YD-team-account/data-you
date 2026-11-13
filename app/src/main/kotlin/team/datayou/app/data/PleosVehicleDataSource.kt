@@ -29,7 +29,9 @@ import team.datayou.engine.signal.SteeringYaw
  * - 속도        : AAOS CarPropertyManager PERF_VEHICLE_SPEED
  * - 브레이크 페달 : Pleos Vehicle SDK Brake.registerBrakePedalStatus        (pleos.car.permission.CAR_DRIVE)
  * - 방향지시등    : Pleos Vehicle SDK TurnSignal.registerTurnSignalState     (pleos.car.permission.CAR_LIGHTS)
+ *                  (Pleos 미탑재 환경에서는 AAOS TURN_SIGNAL_STATE로 대체)
  * - 핸들 각도    : Pleos Vehicle SDK SteeringWheel.registerSteeringWheelAngle → [SteeringYaw]로 요레이트 추정
+ *                  (Pleos 미탑재 환경에서는 AAOS PERF_STEERING_ANGLE로 대체)
  * - 누적 주행거리 : Pleos Vehicle SDK Odometer.registerDistanceDriven         → 리포트 주행거리
  *
  * 채널마다 따로 연결하고, 안 되는 채널은 null로 두고 계속 동작한다(차종별 지원 차이).
@@ -80,13 +82,26 @@ class PleosVehicleDataSource(
     private var vehicle: Vehicle? = null
     private var job: Job? = null
 
-    // ── AAOS 속도 ──
+    // Pleos SDK가 값을 주면 그쪽을 우선하고, 없으면 AAOS 표준 속성 값을 쓴다
+    @Volatile private var pleosSteering = false
+    @Volatile private var pleosTurnSignal = false
+
+    // ── AAOS 표준 속성: 속도 + (대체 경로) 핸들 각도·방향지시등 ──
     private val speedCallback = object : CarPropertyManager.CarPropertyEventCallback {
         override fun onChangeEvent(value: CarPropertyValue<*>) {
-            if (value.propertyId == VehiclePropertyIds.PERF_VEHICLE_SPEED) {
-                (value.value as? Float)?.let {
+            when (value.propertyId) {
+                VehiclePropertyIds.PERF_VEHICLE_SPEED -> (value.value as? Float)?.let {
                     speedMps = it.toDouble()
                     mark { copy(speed = true) }
+                }
+                VehiclePropertyIds.PERF_STEERING_ANGLE -> if (!pleosSteering) (value.value as? Float)?.let {
+                    steeringDeg = it.toDouble()
+                    mark { copy(steering = true) }
+                }
+                VehiclePropertyIds.TURN_SIGNAL_STATE -> if (!pleosTurnSignal) (value.value as? Int)?.let {
+                    // AAOS VehicleTurnSignal: 0 NONE, 1 RIGHT, 2 LEFT
+                    signal = when (it) { 1 -> TurnSignal.RIGHT; 2 -> TurnSignal.LEFT; else -> TurnSignal.OFF }
+                    mark { copy(turnSignal = true) }
                 }
             }
         }
@@ -112,6 +127,7 @@ class PleosVehicleDataSource(
                 TurnSignalValue.RIGHT -> TurnSignal.RIGHT
                 else -> TurnSignal.OFF
             }
+            pleosTurnSignal = true
             mark { copy(turnSignal = true) }
         }
     }
@@ -119,6 +135,7 @@ class PleosVehicleDataSource(
         override fun onFailed(e: Exception) = failed("steering", e)
         override fun onSteeringWheelAngleUpdated(angle: Float?) {
             steeringDeg = angle?.toDouble()
+            pleosSteering = true
             mark { copy(steering = true) }
         }
     }
@@ -174,6 +191,15 @@ class PleosVehicleDataSource(
             propertyManager = pm
             val ok = pm.registerCallback(speedCallback, VehiclePropertyIds.PERF_VEHICLE_SPEED, CarPropertyManager.SENSOR_RATE_FASTEST)
             if (!ok) problem = "차량 속도 신호를 지원하지 않는 환경이에요"
+            // 대체 경로: Pleos SDK가 없는 일반 AAOS(구글 자동차 에뮬레이터 등)에서도 좌우 원인을 잡기 위해
+            for ((id, name) in listOf(VehiclePropertyIds.PERF_STEERING_ANGLE to "steering", VehiclePropertyIds.TURN_SIGNAL_STATE to "turnSignal")) {
+                try {
+                    val reg = pm.registerCallback(speedCallback, id, CarPropertyManager.SENSOR_RATE_FASTEST)
+                    Log.i(TAG, "AAOS $name fallback registered=$reg")
+                } catch (e: Exception) {
+                    Log.w(TAG, "AAOS $name fallback unavailable: ${e.javaClass.simpleName} ${e.message}")
+                }
+            }
         } catch (e: SecurityException) {
             Log.w(TAG, "AAOS speed permission denied", e)
             problem = "속도 권한이 없어요 · 앱을 다시 열어 '허용'을 눌러 주세요"

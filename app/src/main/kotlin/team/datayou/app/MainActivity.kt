@@ -25,6 +25,7 @@ class MainActivity : ComponentActivity() {
     private val runtimePermissions = arrayOf(
         "android.car.permission.CAR_SPEED",
         "android.car.permission.READ_CAR_STEERING",
+        "android.car.permission.CAR_EXTERIOR_LIGHTS",
         "pleos.car.permission.CAR_DRIVE",
         "pleos.car.permission.CAR_LIGHTS",
     )
