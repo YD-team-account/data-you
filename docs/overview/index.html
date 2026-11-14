@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>다타유 아키텍처 개요</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+/* VOICE work: technical reference for reviewers and the developer, calm and exact
+   IDEA the car's own center display at night: the doc is read on the same dark glass the app runs on
+   PICTURE each page leads with one working graphic (gauge, layer map, pipeline, simulator, route viewer)
+   COLOUR night glass #121820, road #232D38, route blue #3D8BFF, comfort #3CC4A0, caution #F2B33D, discomfort #FF7A59
+   TYPE Noto Sans KR 800 titles + Noto Sans KR 400/500 text
+   LAYOUT side rail of 10 topics on desktop, wrapping chip bar on phone; one topic per page, prev/next at the foot */
+:root{color-scheme:dark;--bg:#121820;--panel:#1A2129;--panel2:#26313D;--line:#2E3945;--road:#232D38;--ink:#F2F4F6;--muted:#A9B4C0;--faint:#8794A1;--blue:#3D8BFF;--link:#7CC4FF;--ok:#3CC4A0;--warn:#F2B33D;--bad:#FF7A59;--moment:#FF9B80}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font:16px/1.6 "Noto Sans KR",system-ui,sans-serif;overflow-x:clip;word-break:keep-all;overflow-wrap:break-word}
+a{color:var(--link)}
+.app{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:100vh}
+nav.rail{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--line);padding:24px 14px;background:#0E1319}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px 20px;font-weight:800;font-size:18px}
+.brand svg{flex:none}
+.rail ol{list-style:none;margin:0;padding:0;counter-reset:n}
+.rail li{counter-increment:n}
+.rail a{display:flex;gap:10px;align-items:center;min-height:44px;padding:8px 10px;border-radius:10px;color:var(--muted);text-decoration:none;font-size:15px}
+.rail a::before{content:counter(n);width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12px;background:var(--panel2);color:var(--muted);flex:none}
+.rail a:hover{background:var(--panel)}
+.rail a[aria-current=page]{background:var(--panel);color:var(--ink)}
+.rail a[aria-current=page]::before{background:var(--blue);color:#fff}
+.rail .meta{margin:20px 8px 0;font-size:13px;color:var(--faint);line-height:1.5}
+main{padding:clamp(24px,4vw,56px) max(4vw,16px) 48px;max-width:1240px}
+section.page{display:none}
+section.page.on{display:block;animation:fade .25s ease-out}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){section.page.on{animation:none}.tok{animation:none!important}}
+h1{font-size:clamp(30px,3.6vw,46px);line-height:1.1;letter-spacing:-.02em;margin:0 0 12px;font-weight:800;text-wrap:balance;max-width:24ch}
+h2{font-size:22px;line-height:1.3;margin:36px 0 12px;font-weight:700}
+h3{font-size:17px;margin:0 0 6px;font-weight:700}
+p{margin:0 0 12px;max-width:70ch}
+.lead{font-size:18px;color:var(--muted);max-width:62ch;margin-bottom:24px}
+.muted{color:var(--muted)}
+.small{font-size:13px;color:var(--faint)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+.figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(9em,1fr));gap:12px;margin:20px 0}
+.fig-n{background:var(--panel);border-radius:12px;padding:14px 16px}
+.fig-n b{display:block;font-size:clamp(28px,3vw,36px);font-weight:800;line-height:1.1}
+.fig-n span{font-size:14px;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:13px;background:var(--panel2);color:var(--muted);white-space:nowrap}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--faint);font-weight:500;font-size:13px}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.88em;background:var(--panel2);padding:1px 6px;border-radius:6px;overflow-wrap:anywhere}
+pre{background:#0B1015;border:1px solid var(--line);border-radius:12px;padding:14px 16px;overflow-x:auto;font-size:14px;margin:0}
+button,select{font:inherit}
+.btn{min-height:44px;padding:8px 16px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+.btn:hover{background:var(--panel2)}
+.btn[aria-pressed=true]{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.seg{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
+.shot{width:100%;border-radius:12px;border:1px solid var(--line);display:block;background:#0E1216}
+figure{margin:0}
+figcaption{font-size:14px;color:var(--muted);margin-top:8px}
+.foot{display:flex;justify-content:space-between;gap:12px;margin-top:48px;padding-top:20px;border-top:1px solid var(--line);flex-wrap:wrap}
+.foot a{display:inline-flex;align-items:center;min-height:44px;padding:8px 14px;border-radius:10px;background:var(--panel);text-decoration:none;color:var(--ink)}
+/* overview HMI */
+.hmi{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:20px;align-items:stretch;margin:8px 0 8px}
+.screen{position:relative;border-radius:18px;background:#0E1216;border:1px solid var(--line);min-height:300px;overflow:hidden}
+.screen svg{position:absolute;inset:0;width:100%;height:100%}
+.gaugebox{display:flex;flex-direction:column;justify-content:center;gap:14px}
+/* architecture */
+.layers{display:grid;gap:10px}
+.layer{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;align-items:stretch}
+.layer>.lab{border-radius:12px;padding:12px 14px;font-weight:700;display:flex;flex-direction:column;justify-content:center;font-size:15px}
+.layer>.lab small{font-weight:400;color:var(--muted);font-size:13px}
+.boxes{display:flex;flex-wrap:wrap;gap:8px}
+.box{flex:1 1 150px;min-height:56px;text-align:left;border-radius:12px;padding:10px 12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;font-size:14px;line-height:1.35}
+.box b{display:block;font-size:15px}
+.box span{color:var(--faint);font-size:13px}
+.box[aria-pressed=true]{border-color:var(--blue);background:#17263A}
+.arrow{text-align:center;color:var(--faint);font-size:13px;margin:-2px 0}
+.detail{position:sticky;top:20px}
+/* pipeline */
+.pipe{position:relative;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;margin:20px 0 8px;padding-top:28px}
+.pipe::before{content:"";position:absolute;left:4%;right:4%;top:12px;height:6px;border-radius:3px;background:var(--road)}
+.tok{position:absolute;top:7px;width:16px;height:16px;border-radius:50%;background:var(--blue);box-shadow:0 0 0 5px rgba(61,139,255,.25);animation:run 6s linear infinite}
+@keyframes run{from{left:4%}to{left:calc(96% - 16px)}}
+.st{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:10px 8px;cursor:pointer;color:var(--ink);text-align:left;min-height:84px}
+.st i{font-style:normal;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--panel2);font-size:12px;margin-bottom:6px}
+.st b{display:block;font-size:14px;line-height:1.3}
+.st[aria-pressed=true]{border-color:var(--blue);background:#17263A}
+.st[aria-pressed=true] i{background:var(--blue)}
+/* gauge sim */
+.sim{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px}
+.chart{position:relative;height:340px;background:#0E1216;border:1px solid var(--line);border-radius:14px}
+.chart svg{position:absolute;inset:0;width:100%;height:100%}
+.ctl label{display:block;font-size:14px;color:var(--muted);margin:14px 0 4px}
+.ctl output{float:right;color:var(--ink);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--blue);height:32px}
+select{width:100%;min-height:44px;font-size:16px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:6px 10px}
+.read{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+.read div{background:var(--panel);border-radius:10px;padding:10px 12px}
+.read b{display:block;font-size:24px;font-weight:800}
+.read span{font-size:13px;color:var(--muted)}
+/* causes */
+.causes{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.cause{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:8px}
+.cause .top{display:flex;gap:12px;align-items:center}
+.glyph{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;flex:none}
+.cause dl{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;font-size:14px}
+.cause dt{color:var(--faint)}
+.cause dd{margin:0}
+/* sdk matrix */
+.env td.src b{font-weight:500}
+.env td.lost{color:var(--faint);text-decoration:line-through}
+/* maps */
+.routebox{position:relative;height:360px;background:#0E1216;border:1px solid var(--line);border-radius:14px}
+.routebox svg{position:absolute;inset:0;width:100%;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:14px;color:var(--muted);margin:10px 0}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+/* roadmap */
+.miles{display:grid;gap:12px}
+.mile{display:grid;grid-template-columns:120px minmax(0,1fr);gap:16px;align-items:start;background:var(--panel);border-radius:14px;padding:16px 18px;border-left:6px solid var(--line)}
+.mile.done{border-left-color:var(--ok)}
+.mile.part{border-left-color:var(--warn)}
+.mile.next{border-left-color:var(--blue)}
+.mile h3{margin:0}
+.mile ul{margin:0;padding-left:18px}
+ul.tight{margin:0;padding-left:20px}
+ul.tight li{margin-bottom:6px}
+.copy{float:right;min-height:36px;padding:4px 12px;font-size:13px}
+@media (max-width:1000px){.sim{grid-template-columns:minmax(0,1fr)}.hmi{grid-template-columns:minmax(0,1fr)}.pipe{grid-template-columns:repeat(4,minmax(0,1fr))}.pipe::before,.tok{display:none}.pipe{padding-top:0}}
+@media (max-width:800px){.app{grid-template-columns:minmax(0,1fr)}nav.rail{position:sticky;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:10px 12px;z-index:5}.brand{padding:0 4px 8px;font-size:16px}.rail ol{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}.rail a{white-space:nowrap;min-height:40px;padding:6px 10px;font-size:14px}.rail .meta{display:none}.grid2,.gallery{grid-template-columns:minmax(0,1fr)}.grid3{grid-template-columns:minmax(0,1fr)}.layer{grid-template-columns:minmax(0,1fr)}.detail{position:static}.mile{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:600px){table{font-size:13px}th,td{padding:8px 6px}.stack thead{display:none}.stack tr{display:grid;padding-block:10px;border-bottom:1px solid var(--line)}.stack td{display:flex;justify-content:space-between;gap:12px;border:0;padding:3px 0}.stack td::before{content:attr(data-l);color:var(--faint);flex:none}.pipe{grid-template-columns:repeat(2,minmax(0,1fr))}.read b{font-size:20px}}
+</style>
+</head>
+<body>
+<div class="app">
+<nav class="rail" aria-label="주제">
+  <div class="brand">
+    <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="13" fill="#3CC4A0"/><circle cx="10" cy="12" r="1.8" fill="#0B2A22"/><circle cx="18" cy="12" r="1.8" fill="#0B2A22"/><path d="M9 17q5 4 10 0" stroke="#0B2A22" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+    다타유 DataYou
+  </div>
+  <ol id="navlist"></ol>
+  <p class="meta">아키텍처·기능 개요<br>저장소 커밋 9253049 기준<br>2026.11.15</p>
+</nav>
+<main id="main">
+
+<!-- 1 개요 -->
+<section class="page" id="overview" data-title="개요">
+  <h1>차량 데이터로 동승자 멀미를 미리 읽고, 운전자에게는 원인 하나만 보여줍니다</h1>
+  <p class="lead">다타유는 Pleos Connect 차량용 앱입니다. 차의 속도·브레이크·방향지시등·핸들 각도로 동승자별 멀미 게이지를 계산하고, 지금 게이지를 올리는 운전 습관 하나를 아이콘으로 알려줍니다. 자세한 코칭은 차가 멈췄을 때만 보여줍니다.</p>
+  <div class="hmi">
+    <div class="screen" aria-label="주행 중 화면 개념도"><svg id="hmiSvg"></svg></div>
+    <div class="gaugebox">
+      <div class="panel">
+        <h3>세 가지 순간에 다르게 말합니다</h3>
+        <ul class="tight">
+          <li><b>주행 중</b> · 동승자 얼굴 + 원인 배지 1개. 글자 없음, 단계가 오를 때만 효과음</li>
+          <li><b>정차 시</b> · 원인과 개선 팁 카드, 음성 안내, "속 안 좋아요" 피드백</li>
+          <li><b>하차 후</b> · 원인별 기여 비율과 다음 주행 팁 하나</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>누구를 위한 앱인가</h3>
+        <p class="muted" style="margin:0">아이, 임산부, 어르신, 반려견, 멀미에 약한 동승자. 유형마다 민감도가 달라 같은 운전에도 게이지가 다르게 오릅니다.</p>
+      </div>
+    </div>
+  </div>
+  <div class="figs">
+    <div class="fig-n"><b>7종</b><span>운전자에게 알려주는 원인</span></div>
+    <div class="fig-n"><b>6가지</b><span>동승자 유형 프리셋</span></div>
+    <div class="fig-n"><b>7개</b><span>차량·위치 데이터 채널</span></div>
+    <div class="fig-n"><b>36개</b><span>자동 테스트 (모두 통과)</span></div>
+  </div>
+  <h2>이 문서의 구성</h2>
+  <div class="grid3" id="toc"></div>
+</section>
+
+<!-- 2 아키텍처 -->
+<section class="page" id="architecture" data-title="시스템 아키텍처">
+  <h1>엔진은 안드로이드를 모르고, 앱은 엔진에 샘플만 넣습니다</h1>
+  <p class="lead">두 모듈로 나뉩니다. <code>core-engine</code>은 순수 Kotlin이라 PC(JVM)에서 바로 테스트하고, <code>app</code>은 차량 데이터를 모아 엔진에 넣고 결과를 그립니다. 상자를 누르면 역할과 파일이 보입니다.</p>
+  <div class="grid2" style="grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)">
+    <div class="layers" id="layers"></div>
+    <div class="panel detail" id="archDetail" aria-live="polite"></div>
+  </div>
+  <h2>설계 원칙</h2>
+  <div class="grid3">
+    <div class="panel"><h3>한 가지 입력 형식</h3><p class="muted" style="margin:0">어떤 데이터 소스든 <code>VehicleSample</code> 하나로 바꿔 넣습니다. 값이 없는 채널은 <code>null</code>로 두면 엔진이 대체 경로로 동작합니다.</p></div>
+    <div class="panel"><h3>채널별로 끊어지게</h3><p class="muted" style="margin:0">차종마다 지원 API가 다릅니다. 지원 여부를 먼저 확인하고, 안 되는 채널만 비운 채 나머지로 계속 동작합니다.</p></div>
+    <div class="panel"><h3>기준값은 한 파일에</h3><p class="muted" style="margin:0">모든 임계값·계수는 <code>EngineConfig.kt</code>에 모여 있어 실주행 데이터로 보정할 때 한 곳만 고칩니다.</p></div>
+  </div>
+</section>
+
+<!-- 3 데이터 흐름 -->
+<section class="page" id="flow" data-title="데이터 흐름">
+  <h1>초당 10번, 샘플 하나가 여덟 단계를 지나 화면이 됩니다</h1>
+  <p class="lead">재생이든 실시간이든 같은 길을 지납니다. 단계를 누르면 그 단계에서 하는 일과 쓰는 값을 볼 수 있습니다.</p>
+  <div class="pipe" id="pipe"><div class="tok" aria-hidden="true"></div></div>
+  <div class="panel" id="pipeDetail" aria-live="polite" style="margin-top:12px"></div>
+  <h2>엔진에 들어가는 샘플 (<code>VehicleSample</code>)</h2>
+  <div class="scroll"><table class="stack">
+    <thead><tr><th>필드</th><th>단위</th><th>실시간 출처</th><th>없을 때</th></tr></thead>
+    <tbody>
+      <tr><td data-l="필드"><code>speedMps</code></td><td data-l="단위">m/s</td><td data-l="실시간 출처">AAOS <code>PERF_VEHICLE_SPEED</code></td><td data-l="없을 때">GPS가 움직이면 GPS 속도</td></tr>
+      <tr><td data-l="필드"><code>yawRateRadPs</code></td><td data-l="단위">rad/s, 왼쪽 +</td><td data-l="실시간 출처">핸들 각도 → 자전거 모델</td><td data-l="없을 때">GPS 방위각으로 계산</td></tr>
+      <tr><td data-l="필드"><code>headingDeg</code></td><td data-l="단위">도</td><td data-l="실시간 출처">GPS 방위</td><td data-l="없을 때">좌우 판단 생략</td></tr>
+      <tr><td data-l="필드"><code>brakePedalOn</code></td><td data-l="단위">켜짐/꺼짐</td><td data-l="실시간 출처">Vehicle SDK Brake</td><td data-l="없을 때">급감속은 모두 급제동으로</td></tr>
+      <tr><td data-l="필드"><code>turnSignal</code></td><td data-l="단위">끔/왼쪽/오른쪽</td><td data-l="실시간 출처">Vehicle SDK TurnSignal → AAOS</td><td data-l="없을 때">좌우 이벤트는 급회전으로</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- 4 게이지 -->
+<section class="page" id="gauge" data-title="멀미 게이지">
+  <h1>느리게 반복되는 흔들림이 쌓이면 게이지가 오르고, 조용히 달리면 내려갑니다</h1>
+  <p class="lead">엔진과 같은 식으로 계산하는 간이 시뮬레이터입니다. 동승자와 흔들림을 바꿔 보세요. 150초 뒤에는 직진으로 바뀌어 회복이 시작됩니다.</p>
+  <div class="sim">
+    <div>
+      <div class="chart"><svg id="gSvg" role="img" aria-label="시간에 따른 멀미 게이지"></svg></div>
+      <div class="read">
+        <div><b id="rPeak">0</b><span>최고 게이지</span></div>
+        <div><b id="rCaution">–</b><span>'주의' 도달</span></div>
+        <div><b id="rEvents">0</b><span>순간 이벤트(급회전)</span></div>
+      </div>
+    </div>
+    <div class="panel ctl">
+      <label for="gType">동승자</label>
+      <select id="gType"></select>
+      <label for="gAmp">좌우 흔들림 세기 <output id="oAmp"></output></label>
+      <input type="range" id="gAmp" min="0.5" max="4" step="0.1" value="2.6">
+      <label for="gFreq">흔들림 빠르기 <output id="oFreq"></output></label>
+      <input type="range" id="gFreq" min="0.03" max="1.2" step="0.01" value="0.20">
+      <p class="small" style="margin-top:12px">0.1~0.5Hz(2~10초에 한 번 왕복)가 멀미를 가장 잘 일으키는 대역입니다. 너무 빠른 떨림은 필터에서 걸러집니다. 세기를 2.7 이상으로 올리면 아이에게는 커브마다 순간 이벤트(+6)가 붙어 '힘듦'까지 오릅니다.</p><p class="small" style="margin:0">간이 재현이라 반복 패턴 가산(연속 커브 +4)은 빠져 있어, 실제 엔진에서는 조금 더 빨리 오릅니다.</p>
+    </div>
+  </div>
+  <h2>계산 방식</h2>
+  <div class="grid2">
+    <div class="panel">
+      <ol class="tight">
+        <li>앞뒤·좌우 가속도에서 <b>0.1~0.5Hz 대역</b>만 남깁니다 (저역통과 0.5Hz − 저역통과 0.1Hz).</li>
+        <li>그 크기의 제곱(파워) × <code>0.18</code> × 동승자 민감도를 매 순간 더합니다.</li>
+        <li>급정거·급회전 같은 순간 이벤트는 <code>+6</code>, 반복 패턴은 <code>+4</code>를 더합니다(민감도 곱).</li>
+        <li>흔들림이 거의 없으면 초당 <code>0.17</code>씩 회복합니다.</li>
+        <li>0~100으로 자르고 40 이상 <span class="warn">주의</span>, 70 이상 <span class="bad">힘듦</span>. 내려올 때는 8만큼 여유를 둬 깜빡이지 않게 합니다.</li>
+      </ol>
+    </div>
+    <div class="panel">
+      <h3>근거와 한계</h3>
+      <p class="muted">ISO 2631-1의 멀미 누적 모델(약 0.2Hz에서 가장 민감)을 출발점으로 삼았습니다. 다만 이 모델은 수직 진동 기준이라 차량 멀미 예측에는 한계가 있다는 연구가 있습니다(Bos 외, 2022).</p>
+      <p class="muted" style="margin:0">그래서 앞뒤·좌우 방향을 함께 보고, 정차 카드의 피드백 버튼으로 동승자별 민감도를 기본값의 0.5~2배 범위에서 조정합니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 5 원인 -->
+<section class="page" id="causes" data-title="원인 7종">
+  <h1>운전자가 고칠 수 있는 여섯 가지와, 탓하지 않는 정체 하나</h1>
+  <p class="lead">게이지를 올린 원인을 순간·반복·상황으로 나눕니다. 주행 중 배지에는 지금 기여도가 가장 큰 원인 하나만 나옵니다(최근 60초 가중).</p>
+  <div class="seg" role="group" aria-label="원인 종류" id="causeFilter"></div>
+  <div class="causes" id="causeList"></div>
+  <p class="small" style="margin-top:14px">순간 이벤트 기준값은 동승자 유형마다 배율이 곱해집니다(예: 임산부 0.75배 → 급회전 2.25m/s²부터). 모든 기준값은 실주행 데이터로 보정할 초기값입니다.</p>
+</section>
+
+<!-- 6 화면 -->
+<section class="page" id="screens" data-title="화면과 표시 규칙">
+  <h1>운전 중에는 글자를 읽게 하지 않습니다</h1>
+  <p class="lead">실제 앱 화면(Robolectric 렌더링)입니다. 단계를 바꿔 보면 같은 주행이 화면마다 어떻게 다르게 보이는지 알 수 있습니다.</p>
+  <div class="seg" role="group" aria-label="화면" id="shotSeg"></div>
+  <div class="grid2" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)">
+    <figure><img class="shot" id="shotImg" alt="" width="1280" height="560"><figcaption id="shotCap"></figcaption></figure>
+    <div class="panel" id="shotRules"></div>
+  </div>
+  <h2>주행 중 규칙 전체</h2>
+  <div class="scroll"><table class="stack">
+    <thead><tr><th>규칙</th><th>내용</th><th>왜</th></tr></thead>
+    <tbody>
+      <tr><td data-l="규칙">배지 1개</td><td data-l="내용">기여도가 가장 큰 원인 하나. 다른 원인이 1.2배 이상 커져야 교체</td><td data-l="왜">한눈에 끝나야 함</td></tr>
+      <tr><td data-l="규칙">30초 유지</td><td data-l="내용">배지는 최소 30초 그대로</td><td data-l="왜">깜빡임은 시선을 끔</td></tr>
+      <tr><td data-l="규칙">텍스트 없음</td><td data-l="내용">아이콘 뜻은 정차 카드에서 익힘</td><td data-l="왜">주행 중 읽기 금지</td></tr>
+      <tr><td data-l="규칙">효과음</td><td data-l="내용">게이지 단계가 오를 때만 1회</td><td data-l="왜">반복 알림은 무시됨</td></tr>
+      <tr><td data-l="규칙">대표 동승자</td><td data-l="내용">여럿이면 가장 힘든 한 명만</td><td data-l="왜">정보량 최소화</td></tr>
+      <tr><td data-l="규칙">예측 안내</td><td data-l="내용">'주의' 이상 + 회전 300m 전이면 아이콘이 커졌다 작아짐</td><td data-l="왜">미리 감속 유도</td></tr>
+      <tr><td data-l="규칙">정차 카드</td><td data-l="내용">멈추면 표시, 출발하면 닫힘, 90초 간격</td><td data-l="왜">같은 말 반복 방지</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- 7 SDK -->
+<section class="page" id="sdk" data-title="데이터 채널과 SDK">
+  <h1>Pleos SDK를 먼저 쓰고, 없으면 표준 API, 그다음 GPS로 내려갑니다</h1>
+  <p class="lead">Pleos 정책(AAOS 표준 API가 있으면 표준 우선)을 따르되, 차종마다 다른 지원 범위를 채널별 대체 경로로 흡수합니다. 환경을 바꿔 어떤 값이 어디서 오는지 보세요.</p>
+  <div class="seg" role="group" aria-label="실행 환경" id="envSeg"></div>
+  <div class="scroll"><table class="env stack" id="envTable">
+    <thead><tr><th>채널</th><th>이 환경에서 쓰는 출처</th><th>쓰는 곳</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+  <p class="muted" id="envNote" style="margin-top:12px"></p>
+  <h2>API 사용 현황</h2>
+  <div class="scroll"><table class="stack">
+    <thead><tr><th>SDK / API</th><th>용도</th><th>상태</th></tr></thead>
+    <tbody id="apiRows"></tbody>
+  </table></div>
+  <p class="small" style="margin-top:10px">Vehicle·NaviHelper SDK는 Pleos 공개 Maven 저장소에서 받으며 인증 키가 필요 없습니다. 클라이언트 ID·시크릿은 서버형 기능(STT·LLM 등)에만 필요해 이번 범위에서는 쓰지 않습니다.</p>
+</section>
+
+<!-- 8 지도 -->
+<section class="page" id="maps" data-title="지도">
+  <h1>시나리오 지도는 주행 데이터로 그리고, 실시간 지도는 실제 지도를 씁니다</h1>
+  <p class="lead">아래 경로는 시나리오 CSV의 속도·회전만으로 복원한 실제 궤적입니다. 슬라이더로 차를 움직여 보세요. 도로 유형은 데이터로 자동 판별해 색으로 구분했습니다.</p>
+  <div class="seg" role="group" aria-label="시나리오" id="routeSeg"></div>
+  <div class="routebox"><svg id="rSvg" role="img" aria-label="복원한 주행 경로"></svg></div>
+  <label for="rPos" class="small" style="display:block;margin-top:10px">주행 위치 <output id="oPos"></output></label>
+  <input type="range" id="rPos" min="0" max="1000" value="350">
+  <div class="legend">
+    <span><i class="dot" style="background:#7E8B98"></i>시내</span>
+    <span><i class="dot" style="background:#7CC4FF"></i>간선도로</span>
+    <span><i class="dot" style="background:#3D8BFF"></i>고속도로</span>
+    <span><i class="dot" style="background:#3CC4A0"></i>굽이길</span>
+  </div>
+  <div class="grid2">
+    <div class="panel">
+      <h3>시나리오 지도 (<code>RouteGeometry</code> → <code>ScenarioMap</code>)</h3>
+      <ol class="tight">
+        <li><b>추측 항법:</b> 속도 × 시간으로 거리, 회전 속도를 적분해 방향을 구해 궤적을 만듭니다.</li>
+        <li><b>도로 유형:</b> 앞뒤 15초 평균 속도와 회전량으로 시내·간선·고속도로·굽이길을 나눕니다.</li>
+        <li><b>차로 위치:</b> 도로 방향 대비 옆 이동을 쌓아 차선 변경을 한 차로 이동으로 표시합니다.</li>
+        <li><b>회전 안내:</b> 50m 안에 60도 넘게 꺾이는 곳을 교차로 회전으로 찾아 실제 거리로 안내합니다.</li>
+        <li>정차 지점엔 정지선·신호등, 정차가 잦은 곳엔 앞차 행렬을 그립니다.</li>
+      </ol>
+    </div>
+    <div class="panel">
+      <h3>실시간 지도 (<code>LiveMap</code> · <code>LiveLocator</code>)</h3>
+      <ul class="tight">
+        <li>OpenStreetMap 데이터의 어두운 지도(CARTO 타일)를 osmdroid로 띄웁니다. 구글 서비스·API 키가 필요 없어 Pleos 차량에서도 동작합니다.</li>
+        <li>GPS가 움직이면 GPS 위치·방위를 그대로 따라갑니다(실차, 에뮬레이터 경로 재생).</li>
+        <li>GPS가 멈춰 있고 차량 신호만 들어오면 마지막 위치에서 속도·회전으로 추정 이동합니다. 이때는 도로를 따라가지 않습니다.</li>
+        <li>지도 아래에 출처 "© OpenStreetMap contributors © CARTO"를 표시합니다.</li>
+      </ul>
+    </div>
+  </div>
+  <h2>앱에서 그려진 시나리오 지도</h2>
+  <div class="gallery" id="mapGallery"></div>
+</section>
+
+<!-- 9 검증 -->
+<section class="page" id="verify" data-title="검증과 도구">
+  <h1>9개 시나리오에서 원인이 의도대로 갈리는지 36개 테스트로 확인합니다</h1>
+  <p class="lead">실제 도로 형상(커브 반경·회전각, 교차로 회전, 한 차로 이동)으로 만든 합성 데이터를 동승자 '아이'로 재생한 결과입니다. 수치보다 원인 구분이 핵심입니다.</p>
+  <div class="scroll"><table class="stack">
+    <thead><tr><th>시나리오</th><th class="num">최고 게이지</th><th>감지된 원인</th></tr></thead>
+    <tbody id="scRows"></tbody>
+  </table></div>
+  <div class="grid2" style="margin-top:28px">
+    <div class="panel">
+      <h3>자동 테스트 36개</h3>
+      <ul class="tight">
+        <li><b>엔진 24개</b> · 시나리오별 원인 판별, 동승자 민감도 차이, 배지 30초 유지·효과음 규칙, 원안 모드, 조향각↔회전 변환, GPS 방위각 회귀 방지</li>
+        <li><b>앱 12개</b> · 화면 스냅샷 5, 시나리오 지도 스냅샷 6, 실시간 지도 렌더링 1</li>
+      </ul>
+      <pre style="margin-top:12px"><button class="btn copy" data-copy="./gradlew :core-engine:test :app:testDebugUnitTest">복사</button>./gradlew :core-engine:test :app:testDebugUnitTest</pre>
+    </div>
+    <div class="panel">
+      <h3>도구 (<code>tools/</code>)</h3>
+      <div class="scroll"><table class="stack">
+        <tbody>
+          <tr><td data-l="도구"><code>sway_demo.bat</code></td><td data-l="하는 일">에뮬레이터에 속도·핸들·깜빡이를 약 2분 주입해 연속 커브와 급차선변경 재현</td></tr>
+          <tr><td data-l="도구"><code>pleos_probe.bat</code></td><td data-l="하는 일">설치, 데이터 주입 방식 시험, 앱 로그 수집</td></tr>
+          <tr><td data-l="도구"><code>fix_install.bat</code></td><td data-l="하는 일">AAOS 멀티유저 설치 문제 해결(모든 사용자에 재설치)</td></tr>
+          <tr><td data-l="도구"><code>ReplayCli</code></td><td data-l="하는 일">시나리오 재생·요약·CSV 내보내기·프로토타입 타임라인</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 로드맵 -->
+<section class="page" id="roadmap" data-title="로드맵과 한계">
+  <h1>엔진·앱·SDK 연동 코드는 완료, PT까지 실차 수준 다듬기가 남았습니다</h1>
+  <p class="lead">제출 시점(11/15) 기준입니다. M3의 Pleos 에뮬레이터 시연은 진행 중입니다.</p>
+  <div class="miles">
+    <div class="mile done"><h3 class="ok">M1 완료</h3><ul><li>엔진: 게이지, 원인 7종, 배지 규칙, 리포트, 시나리오 9종, 재생 CLI</li><li>화면 시안, 인터랙티브 프로토타입</li></ul></div>
+    <div class="mile done"><h3 class="ok">M2 완료</h3><ul><li>AAOS 앱(Compose): 출발·주행·정차 카드·리포트, 재생/실시간 데이터 소스, 효과음·음성</li><li>설치 문제 해결 문서와 스크립트</li></ul></div>
+    <div class="mile part"><h3 class="warn">M3 코드 완료</h3><ul><li>Vehicle SDK 4종·NaviHelper TBT 연결, AAOS 대체 경로, 런타임 권한</li><li>데이터 기반 시나리오 지도, 실시간 OpenStreetMap 지도, 신호 주입 도구</li><li>남음: Pleos 에뮬레이터 검증과 시연 영상</li></ul></div>
+    <div class="mile next"><h3 style="color:var(--blue)">PT (12/3) 전</h3><ul><li>Gleo AI TTS로 음성 교체, 시동·기어 신호로 자동 시작·종료</li><li>화면 제약 매니저 연동, 내비 위에 띄우는 표시 방식</li><li>실주행 데이터로 기준값 보정·정확도 측정, 리포트 저장·지도</li></ul></div>
+    <div class="mile"><h3 class="muted">이후 (Todo)</h3><ul><li>Gleo STT·LLM, HVAC·창문 자동 케어, BLE 센서로 위아래 흔들림, 멀미 위험 구간 지도, EV 회생제동 단계 권장</li></ul></div>
+  </div>
+  <h2>알고 있는 한계</h2>
+  <div class="grid2">
+    <div class="panel"><ul class="tight">
+      <li><b>위아래 흔들림은 측정하지 않습니다.</b> 방지턱·노면은 차량 데이터로 얻을 수 없습니다.</li>
+      <li><b>기준값은 초기값입니다.</b> 실주행 데이터와 수동 라벨로 보정해야 합니다.</li>
+      <li><b>검증 데이터는 합성입니다.</b> 실제 도로 형상을 본떴지만 실주행 기록은 아닙니다.</li>
+    </ul></div>
+    <div class="panel"><ul class="tight">
+      <li><b>GPS만 쓰면</b> 방위각이 약 1Hz라 짧은 차선 변경을 놓칠 수 있습니다.</li>
+      <li><b>브레이크 신호가 없는 차</b>에서는 회생·관성 감속을 따로 구분하지 못합니다.</li>
+      <li><b>실시간 지도</b>는 인터넷 연결이 필요하고, 신호만 주입한 시연에서는 도로를 따라가지 않습니다.</li>
+    </ul></div>
+  </div>
+</section>
+
+<div class="foot" id="foot"></div>
+</main>
+</div>
+<script>
+{
+const ROUTES = {"family":{"pts":[[0.0,0.0,"C"],[15.9,-0.0,"C"],[31.7,0.0,"C"],[47.0,0.0,"C"],[62.3,0.0,"C"],[77.5,-0.0,"C"],[92.8,-0.0,"C"],[108.1,-0.0,"C"],[123.4,-0.0,"C"],[138.6,-0.0,"C"],[153.9,0.0,"C"],[169.2,0.0,"C"],[184.5,0.0,"C"],[199.7,0.1,"C"],[215.1,0.1,"C"],[230.4,0.1,"C"],[245.7,0.1,"C"],[261.1,0.2,"C"],[276.6,0.2,"C"],[292.2,0.2,"C"],[307.7,0.3,"C"],[323.2,0.3,"C"],[337.3,-3.3,"C"],[342.1,-17.4,"W"],[342.7,-32.6,"W"],[343.3,-48.0,"W"],[343.9,-64.0,"W"],[344.4,-79.2,"W"],[345.0,-94.4,"W"],[345.5,-109.7,"W"],[346.1,-125.0,"W"],[346.7,-140.2,"W"],[347.3,-155.5,"C"],[347.8,-170.8,"C"],[348.4,-186.0,"C"],[348.9,-201.3,"C"],[349.5,-217.1,"C"],[350.1,-232.1,"C"],[350.6,-247.6,"C"],[351.2,-262.7,"C"],[351.8,-278.3,"C"],[352.3,-293.8,"C"],[352.9,-309.4,"C"],[353.5,-324.7,"C"],[354.1,-340.0,"C"],[355.1,-355.4,"C"],[365.8,-365.0,"C"],[381.1,-365.2,"W"],[396.8,-365.2,"W"],[412.9,-365.2,"W"],[429.2,-365.1,"W"],[444.6,-365.1,"W"],[461.1,-365.1,"W"],[477.8,-365.0,"W"],[494.5,-365.0,"W"],[511.1,-364.9,"W"],[527.8,-364.9,"A"],[544.5,-364.9,"A"],[561.1,-364.8,"A"],[576.1,-364.8,"A"],[592.3,-364.8,"A"],[607.6,-364.8,"A"],[623.3,-364.7,"A"],[638.7,-364.7,"A"],[654.3,-364.7,"A"],[670.7,-364.7,"A"],[687.2,-364.6,"A"],[703.8,-364.6,"A"],[718.8,-364.6,"A"],[735.5,-364.6,"A"],[750.5,-364.6,"A"],[767.1,-364.5,"A"],[783.8,-364.5,"A"],[798.8,-364.5,"A"],[813.8,-364.4,"A"],[829.0,-364.4,"A"],[844.4,-364.4,"A"],[859.5,-364.3,"A"],[874.7,-364.3,"A"],[891.1,-364.3,"A"],[906.6,-364.2,"A"],[923.2,-364.2,"A"],[938.2,-364.2,"A"],[954.8,-364.2,"A"],[969.9,-364.1,"A"],[986.5,-364.1,"A"],[1003.2,-364.1,"A"],[1018.2,-364.1,"A"],[1034.8,-364.1,"A"],[1051.3,-364.0,"A"],[1067.4,-364.0,"A"],[1082.5,-364.0,"A"],[1098.3,-364.0,"A"],[1113.6,-364.0,"A"],[1129.6,-363.9,"A"],[1145.9,-363.9,"A"],[1161.5,-363.9,"A"],[1178.1,-363.9,"A"],[1193.7,-363.9,"H"],[1210.1,-364.0,"H"],[1227.2,-364.0,"H"],[1242.8,-364.0,"H"],[1259.0,-364.0,"H"],[1275.8,-364.0,"H"],[1293.2,-364.1,"H"],[1308.2,-364.1,"H"],[1325.7,-364.1,"H"],[1343.2,-364.1,"H"],[1360.7,-364.1,"H"],[1375.7,-364.2,"H"],[1393.2,-364.2,"H"],[1410.7,-364.2,"H"],[1428.2,-364.2,"H"],[1443.2,-364.2,"H"],[1460.6,-364.3,"H"],[1478.1,-364.3,"H"],[1495.6,-364.3,"H"],[1513.1,-364.3,"H"],[1530.6,-364.3,"H"],[1545.6,-364.3,"H"],[1560.6,-364.3,"H"],[1575.6,-364.3,"H"],[1590.6,-364.4,"H"],[1608.1,-364.4,"H"],[1625.6,-364.4,"H"],[1643.1,-364.4,"H"],[1660.6,-364.4,"H"],[1678.1,-364.5,"H"],[1695.6,-364.5,"H"],[1710.6,-364.5,"H"],[1728.1,-364.5,"H"],[1743.1,-364.6,"H"],[1758.1,-364.6,"H"],[1773.1,-364.6,"H"],[1788.1,-364.6,"H"],[1805.6,-364.6,"H"],[1823.1,-364.7,"H"],[1838.1,-364.7,"H"],[1853.1,-364.7,"H"],[1868.1,-364.7,"H"],[1885.6,-364.7,"H"],[1903.1,-364.8,"H"],[1920.6,-364.8,"H"],[1938.1,-364.8,"H"],[1953.1,-364.8,"H"],[1968.1,-364.9,"H"],[1983.1,-364.9,"H"],[2000.6,-364.9,"H"],[2015.6,-365.0,"H"],[2030.6,-365.0,"H"],[2048.1,-365.0,"H"],[2063.1,-365.1,"H"],[2078.1,-365.1,"H"],[2095.6,-365.2,"H"],[2113.1,-365.3,"H"],[2130.6,-365.3,"H"],[2148.1,-365.4,"H"],[2163.1,-365.5,"H"],[2180.6,-365.6,"H"],[2195.6,-365.6,"H"],[2210.6,-365.7,"H"],[2225.6,-365.7,"H"],[2243.1,-365.8,"H"],[2258.1,-365.9,"H"],[2275.6,-366.0,"H"],[2293.1,-366.0,"H"],[2310.6,-366.1,"H"],[2328.1,-366.2,"H"],[2345.6,-366.1,"H"],[2363.1,-365.6,"H"],[2378.1,-364.8,"H"],[2395.6,-363.9,"H"],[2410.6,-363.5,"H"],[2428.1,-363.5,"H"],[2443.1,-363.6,"H"],[2458.1,-363.7,"H"],[2475.6,-363.7,"H"],[2493.1,-363.8,"H"],[2508.1,-363.9,"H"],[2523.1,-363.9,"H"],[2538.1,-364.0,"H"],[2553.1,-364.1,"H"],[2570.6,-364.2,"H"],[2588.1,-364.2,"H"],[2603.1,-364.3,"H"],[2618.1,-364.4,"H"],[2635.6,-364.5,"H"],[2650.6,-364.6,"H"],[2668.1,-364.6,"H"],[2685.6,-364.7,"H"],[2703.1,-364.8,"H"],[2718.1,-364.9,"H"],[2735.6,-365.0,"H"],[2750.6,-365.1,"H"],[2768.0,-365.2,"H"],[2785.5,-365.2,"H"],[2800.5,-365.3,"H"],[2815.5,-365.4,"H"],[2833.0,-365.5,"H"],[2850.5,-365.6,"H"],[2865.5,-365.7,"H"],[2883.0,-365.7,"H"],[2898.0,-365.8,"H"],[2915.5,-365.9,"H"],[2933.0,-366.0,"H"],[2950.5,-366.1,"H"],[2968.0,-366.2,"H"],[2985.5,-366.3,"H"],[3000.5,-366.4,"H"],[3018.0,-366.5,"H"],[3035.5,-366.6,"H"],[3053.0,-366.7,"H"],[3068.0,-366.8,"H"],[3085.5,-366.9,"H"],[3100.5,-367.0,"H"],[3118.0,-367.1,"H"],[3135.5,-367.2,"H"],[3153.0,-367.4,"H"],[3168.0,-367.5,"H"],[3185.4,-367.6,"H"],[3202.4,-367.7,"H"],[3218.7,-367.8,"H"],[3234.4,-367.9,"H"],[3249.6,-368.0,"A"],[3266.2,-368.1,"A"],[3282.0,-368.2,"A"],[3297.0,-368.2,"A"],[3313.1,-368.3,"A"],[3328.1,-368.4,"A"],[3343.7,-368.5,"A"],[3359.5,-368.6,"A"],[3375.0,-368.7,"A"],[3391.1,-368.7,"A"],[3406.5,-366.8,"A"],[3420.8,-361.0,"A"],[3433.3,-351.7,"A"],[3443.0,-339.6,"A"],[3449.6,-325.5,"A"],[3455.7,-311.2,"A"],[3464.4,-298.4,"W"],[3475.9,-288.0,"W"],[3489.5,-280.5,"W"],[3504.5,-276.5,"W"],[3520.0,-275.3,"W"],[3535.5,-273.7,"W"],[3550.1,-268.6,"W"],[3563.0,-260.0,"W"],[3573.7,-248.8,"W"],[3584.3,-237.3,"W"],[3596.9,-228.2,"W"],[3611.2,-222.3,"W"],[3626.5,-219.7,"W"],[3642.0,-218.5,"W"],[3657.2,-215.3,"W"],[3671.3,-208.8,"W"],[3683.6,-199.3,"W"],[3693.5,-187.3,"W"],[3701.4,-174.0,"W"],[3710.3,-161.2,"W"],[3721.6,-150.5,"W"],[3734.8,-142.3,"W"],[3749.4,-137.0,"W"],[3764.6,-133.6,"W"],[3779.3,-128.8,"W"],[3792.6,-120.8,"W"],[3803.8,-110.0,"W"],[3812.1,-96.9,"W"],[3817.3,-82.3,"W"],[3819.8,-66.9,"W"],[3823.1,-51.8,"W"],[3829.6,-37.7,"W"],[3839.2,-25.5,"W"],[3851.4,-15.9,"W"],[3865.5,-9.4,"W"],[3880.7,-6.3,"W"],[3896.1,-3.8,"W"],[3910.9,0.9,"W"],[3924.5,8.4,"W"],[3936.4,18.4,"W"],[3946.1,30.5,"W"],[3953.3,44.2,"W"],[3957.7,59.1,"W"],[3960.8,74.4,"W"],[3965.7,89.1,"W"],[3973.8,102.3,"W"],[3984.7,113.4,"W"],[3997.6,122.0,"W"],[4010.6,130.5,"W"],[4021.5,141.5,"W"],[4029.4,154.9,"W"],[4033.8,169.8,"W"],[4034.5,185.3,"W"],[4031.6,200.5,"W"],[4028.3,215.7,"W"],[4028.3,231.3,"W"],[4032.3,246.3,"W"],[4039.9,259.8,"W"],[4049.1,272.3,"W"],[4056.6,285.9,"W"],[4060.6,300.9,"W"],[4060.8,316.4,"W"],[4057.3,331.6,"W"],[4050.3,345.4,"W"],[4041.4,358.2,"W"],[4034.2,371.9,"W"],[4030.4,387.0,"W"],[4030.5,402.5,"W"],[4034.4,417.5,"W"],[4040.4,431.8,"W"],[4044.9,446.7,"W"],[4045.6,462.2,"W"],[4042.4,477.3,"W"],[4035.5,491.2,"W"],[4025.3,503.0,"W"],[4014.1,513.8,"W"],[4004.5,526.0,"W"],[3997.6,539.9,"W"],[3993.6,554.9,"W"],[3992.5,570.4,"W"],[3991.9,585.9,"W"],[3988.6,601.1,"W"],[3981.9,615.0,"W"],[3972.1,627.1,"W"],[3959.9,636.8,"W"],[3947.5,646.1,"W"],[3936.8,657.4,"W"],[3928.6,670.6,"W"],[3923.3,685.2,"W"],[3921.1,700.5,"W"],[3922.1,716.1,"W"],[3924.8,731.4,"W"],[3925.9,746.9,"W"],[3923.6,762.2,"W"],[3918.0,776.7,"W"],[3909.3,789.6,"W"],[3898.1,800.3,"W"],[3884.8,808.3,"W"],[3870.5,814.3,"W"],[3856.7,821.5,"W"],[3845.0,831.7,"W"],[3836.1,844.4,"W"],[3830.5,858.9,"W"],[3828.7,874.3,"W"],[3830.2,889.7,"W"],[3832.3,905.1,"W"],[3831.3,920.6,"W"],[3826.7,935.4,"W"],[3818.7,948.7,"W"],[3807.8,959.8,"W"],[3794.6,967.9,"W"],[3780.4,974.3,"W"],[3767.1,982.2,"W"],[3755.8,992.9,"W"],[3747.3,1005.9,"W"],[3742.0,1020.5,"W"],[3740.1,1035.9,"W"],[3739.4,1051.4,"W"],[3736.5,1066.7,"W"],[3730.7,1081.1,"W"],[3722.1,1094.0,"W"],[3711.0,1104.9,"W"],[3698.0,1113.3,"W"],[3683.5,1118.9,"W"],[3668.5,1122.9,"W"],[3653.9,1128.3,"W"],[3640.7,1136.4,"W"],[3629.4,1147.1,"W"],[3620.4,1159.7,"W"],[3614.1,1173.9,"W"],[3609.6,1188.8,"W"],[3603.6,1203.1,"W"],[3594.3,1215.6,"W"],[3582.4,1225.5,"W"],[3568.4,1232.2,"W"],[3553.6,1236.8,"W"],[3539.3,1242.8,"W"],[3526.8,1252.0,"W"],[3516.9,1264.0,"W"],[3510.2,1278.0,"W"],[3507.0,1293.1,"W"],[3507.2,1308.7,"W"],[3508.0,1324.2,"W"],[3508.8,1339.7,"W"],[3509.7,1355.3,"W"],[3510.5,1370.8,"C"],[3511.4,1386.3,"C"],[3512.2,1401.9,"C"],[3513.1,1417.4,"C"],[3513.9,1433.2,"C"],[3514.8,1448.6,"C"],[3515.6,1463.6,"C"],[3516.5,1479.0,"C"],[3517.3,1494.0,"C"],[3518.1,1509.4,"C"],[3519.0,1524.6,"C"],[3519.8,1539.7,"C"],[3520.7,1554.9,"C"],[3521.5,1570.0,"C"],[3522.3,1585.0,"C"],[3523.2,1600.4,"C"],[3524.0,1616.3,"C"],[3524.9,1631.8,"C"],[3525.7,1647.3,"C"],[3526.6,1662.8,"C"],[3527.5,1678.4,"C"],[3528.3,1693.9,"C"],[3529.2,1709.4,"C"],[3530.1,1724.9,"C"],[3530.9,1740.5,"C"],[3531.8,1756.0,"C"],[3532.7,1771.5,"C"],[3533.6,1787.0,"C"],[3534.5,1802.6,"C"],[3535.4,1818.1,"C"],[3536.3,1833.6,"C"],[3537.2,1849.2,"C"],[3538.0,1864.7,"C"],[3538.9,1880.2,"C"],[3539.8,1895.8,"C"],[3540.7,1911.3,"C"],[3541.6,1926.8,"C"],[3542.5,1942.3,"C"],[3543.4,1957.9,"C"],[3544.3,1973.4,"C"],[3545.2,1988.9,"C"],[3546.1,2004.5,"C"],[3547.0,2020.0,"C"],[3547.9,2035.5,"C"],[3548.8,2051.0,"C"],[3549.7,2066.6,"C"],[3550.6,2082.1,"C"],[3551.6,2097.6,"C"],[3552.5,2113.2,"C"],[3553.4,2128.7,"C"],[3554.3,2144.2,"C"],[3555.2,2159.7,"C"],[3556.1,2175.3,"C"],[3557.0,2190.8,"C"],[3558.0,2206.3,"C"],[3558.9,2221.8,"C"],[3559.8,2237.4,"C"],[3560.7,2252.9,"C"],[3561.6,2268.4,"C"],[3562.5,2284.0,"C"],[3563.4,2299.3,"C"],[3564.3,2315.0,"C"],[3565.2,2330.1,"C"]],"len":7063},"mountain":{"pts":[[0.0,0.0,"C"],[8.4,-0.0,"C"],[16.9,-0.0,"C"],[25.6,-0.0,"C"],[34.1,-0.0,"C"],[42.7,-0.0,"C"],[50.8,-0.0,"C"],[59.0,-0.0,"C"],[67.2,-0.1,"C"],[75.3,-0.1,"C"],[83.5,-0.1,"C"],[91.7,-0.1,"C"],[99.9,-0.1,"C"],[108.0,-0.1,"C"],[116.2,-0.2,"C"],[124.4,0.0,"C"],[132.5,1.0,"C"],[140.4,3.0,"C"],[147.9,6.1,"C"],[155.0,10.1,"C"],[161.6,15.0,"C"],[167.4,20.7,"C"],[172.4,27.1,"C"],[177.0,33.9,"C"],[181.5,40.7,"C"],[186.5,47.1,"C"],[192.4,52.8,"C"],[199.0,57.6,"W"],[206.3,61.3,"W"],[214.0,63.9,"W"],[222.0,65.5,"W"],[230.1,66.5,"W"],[238.2,67.7,"W"],[246.1,69.7,"W"],[253.7,72.7,"W"],[260.8,76.8,"W"],[267.2,81.9,"W"],[272.8,87.9,"W"],[277.5,94.5,"W"],[281.5,101.6,"W"],[285.4,108.8,"W"],[289.8,115.7,"W"],[295.0,121.9,"W"],[301.2,127.3,"W"],[308.0,131.8,"W"],[315.5,135.1,"W"],[323.3,137.4,"W"],[331.4,138.4,"W"],[339.6,138.2,"W"],[347.7,137.2,"W"],[355.7,135.9,"W"],[363.8,135.0,"W"],[372.0,135.1,"W"],[380.1,136.3,"W"],[387.9,138.7,"W"],[395.3,142.1,"W"],[402.2,146.5,"W"],[408.3,151.9,"W"],[413.7,158.0,"W"],[418.5,164.6,"W"],[423.1,171.3,"W"],[428.1,177.8,"W"],[433.8,183.7,"W"],[440.0,188.9,"W"],[446.8,193.4,"W"],[454.1,197.1,"W"],[461.8,199.9,"W"],[469.7,201.9,"W"],[477.8,203.0,"W"],[485.9,203.9,"W"],[494.0,204.9,"W"],[502.0,206.8,"W"],[509.6,209.7,"W"],[516.8,213.6,"W"],[523.3,218.4,"W"],[529.2,224.1,"W"],[534.2,230.5,"W"],[538.4,237.5,"W"],[541.6,245.0,"W"],[544.4,252.7,"W"],[547.3,260.3,"W"],[551.0,267.6,"W"],[555.7,274.2,"W"],[561.4,280.1,"W"],[567.8,285.1,"W"],[575.0,289.0,"W"],[582.6,291.8,"W"],[590.6,293.5,"W"],[598.8,293.9,"W"],[606.9,293.6,"W"],[615.1,293.3,"W"],[623.2,293.4,"W"],[631.3,294.4,"W"],[639.3,296.4,"W"],[646.9,299.3,"W"],[654.1,303.0,"W"],[660.9,307.6,"W"],[667.1,312.9,"W"],[672.7,318.8,"W"],[677.5,325.4,"W"],[682.0,332.2,"W"],[686.5,339.0,"W"],[691.6,345.4,"W"],[697.5,351.0,"W"],[704.2,355.7,"W"],[711.5,359.3,"W"],[719.2,361.9,"W"],[727.3,363.3,"W"],[735.4,363.5,"W"],[743.6,363.1,"W"],[751.8,362.5,"W"],[759.9,362.6,"W"],[768.0,363.7,"W"],[775.9,365.9,"W"],[783.4,369.1,"W"],[790.3,373.4,"W"],[796.7,378.5,"W"],[802.7,384.0,"W"],[808.8,389.5,"W"],[815.2,394.5,"W"],[822.1,398.9,"W"],[829.5,402.3,"W"],[837.2,404.9,"W"],[845.2,406.6,"W"],[853.4,407.3,"W"],[861.5,407.0,"W"],[869.6,405.8,"W"],[877.5,403.7,"W"],[885.1,400.7,"W"],[892.3,397.0,"W"],[899.6,393.2,"W"],[906.9,389.7,"W"],[914.7,387.1,"W"],[922.7,385.7,"W"],[930.9,385.5,"W"],[939.0,386.3,"W"],[946.9,388.4,"W"],[954.4,391.4,"W"],[961.7,395.1,"W"],[969.0,398.9,"W"],[976.5,402.1,"W"],[984.4,404.1,"W"],[992.5,405.0,"W"],[1000.6,404.6,"W"],[1008.6,403.0,"W"],[1016.3,400.2,"W"],[1023.5,396.3,"W"],[1030.5,392.1,"W"],[1037.5,387.8,"W"],[1044.8,384.2,"W"],[1052.5,381.5,"W"],[1060.4,379.6,"W"],[1068.5,378.8,"W"],[1076.7,378.9,"W"],[1084.8,379.9,"W"],[1092.7,381.9,"W"],[1100.3,384.8,"W"],[1107.8,388.0,"W"],[1115.4,391.2,"W"],[1123.1,393.8,"W"],[1131.1,395.4,"W"],[1139.3,396.1,"W"],[1147.4,395.9,"W"],[1155.5,394.8,"W"],[1163.4,392.7,"W"],[1171.0,389.8,"W"],[1178.2,386.0,"W"],[1185.1,381.5,"W"],[1191.9,377.0,"W"],[1198.8,372.7,"W"],[1206.2,369.2,"W"],[1213.9,366.6,"W"],[1221.9,365.1,"W"],[1230.1,364.5,"W"],[1238.2,365.0,"W"],[1246.3,366.5,"W"],[1254.1,368.9,"W"],[1261.5,372.4,"W"],[1268.5,376.5,"W"],[1275.4,380.9,"W"],[1282.4,385.0,"W"],[1289.9,388.3,"W"],[1297.7,390.6,"W"],[1305.8,391.7,"W"],[1314.0,391.7,"W"],[1322.1,390.7,"W"],[1330.0,388.8,"W"],[1338.0,386.9,"W"],[1346.0,385.4,"W"],[1354.1,384.8,"W"],[1362.3,385.4,"W"],[1370.3,386.9,"W"],[1378.0,389.5,"W"],[1385.4,393.1,"W"],[1392.2,397.6,"W"],[1398.5,402.7,"W"],[1404.8,408.0,"W"],[1411.2,413.0,"W"],[1418.2,417.2,"W"],[1425.7,420.3,"W"],[1433.6,422.5,"W"],[1441.7,423.5,"W"],[1449.9,423.4,"W"],[1458.0,422.3,"W"],[1465.8,420.0,"W"],[1473.2,416.7,"W"],[1480.2,412.5,"W"],[1487.1,408.0,"W"],[1494.0,403.6,"W"],[1501.2,399.9,"W"],[1508.8,397.0,"W"],[1516.8,395.0,"W"],[1524.9,394.0,"W"],[1533.0,393.9,"W"],[1541.1,394.7,"W"],[1549.1,396.5,"W"],[1556.8,399.2,"W"],[1564.3,402.4,"W"],[1571.8,405.7,"W"],[1579.5,408.4,"W"],[1587.4,410.3,"W"],[1595.6,411.1,"W"],[1603.7,410.9,"W"],[1611.8,409.7,"W"],[1619.7,407.5,"W"],[1627.2,404.3,"W"],[1634.2,400.2,"W"],[1640.9,395.4,"W"],[1647.4,390.6,"W"],[1654.2,386.0,"W"],[1661.5,382.4,"W"],[1669.2,379.8,"W"],[1677.3,378.4,"W"],[1685.4,378.2,"W"],[1693.6,379.1,"W"],[1701.6,380.5,"W"],[1709.7,381.8,"W"],[1717.8,382.4,"W"],[1726.0,381.9,"W"],[1734.0,380.5,"W"],[1741.8,378.0,"W"],[1749.2,374.5,"W"],[1756.1,370.2,"W"],[1762.7,365.4,"W"],[1769.4,360.7,"W"],[1776.4,356.6,"W"],[1784.0,353.6,"W"],[1792.0,351.8,"W"],[1800.1,351.3,"W"],[1808.2,352.0,"W"],[1816.2,353.5,"W"],[1824.2,355.2,"W"],[1832.3,356.4,"W"],[1840.5,356.6,"W"],[1848.6,355.8,"W"],[1856.5,353.9,"W"],[1864.2,351.0,"W"],[1871.4,347.2,"W"],[1878.0,342.4,"W"],[1884.1,337.0,"W"],[1890.0,331.4,"W"],[1896.1,326.0,"W"],[1902.8,321.3,"W"],[1910.1,317.7,"W"],[1917.9,315.2,"W"],[1925.9,313.7,"W"],[1934.1,313.5,"W"],[1942.2,314.3,"W"],[1950.3,315.3,"W"],[1958.4,316.0,"W"],[1966.6,315.7,"W"],[1974.6,314.3,"W"],[1982.3,311.7,"W"],[1989.6,307.9,"W"],[1996.2,303.2,"W"],[2002.3,297.7,"W"],[2008.2,292.0,"W"],[2014.3,286.7,"W"],[2021.0,282.0,"W"],[2028.2,278.2,"W"],[2035.8,275.2,"W"],[2043.8,273.3,"W"],[2051.9,272.3,"W"],[2060.0,272.4,"W"],[2068.1,273.4,"W"],[2076.0,275.4,"W"],[2083.7,278.2,"W"],[2091.3,281.1,"W"],[2099.1,283.8,"W"],[2107.0,285.5,"W"],[2115.2,286.3,"W"],[2123.3,286.0,"W"],[2131.4,284.7,"W"],[2139.2,282.5,"W"],[2146.7,279.2,"W"],[2153.8,275.1,"W"],[2160.3,270.2,"W"],[2166.7,265.1,"W"],[2173.1,260.1,"W"],[2180.0,255.7,"W"],[2187.5,252.4,"W"],[2195.3,250.1,"W"],[2203.4,248.9,"W"],[2211.6,248.8,"W"],[2219.7,249.8,"W"],[2227.5,251.9,"W"],[2235.1,255.1,"W"],[2242.2,259.0,"W"],[2249.2,263.2,"W"],[2256.3,267.3,"W"],[2263.8,270.5,"W"],[2271.6,272.9,"W"],[2279.7,274.3,"W"],[2287.8,274.7,"W"],[2296.0,274.1,"W"],[2304.0,272.6,"W"],[2311.8,270.1,"W"],[2319.2,266.7,"W"],[2326.1,262.5,"W"],[2332.7,257.6,"W"],[2339.3,252.7,"W"],[2346.0,248.2,"W"],[2353.2,244.3,"W"],[2360.8,241.3,"W"],[2368.7,239.3,"W"],[2376.8,238.1,"W"],[2384.9,237.8,"W"],[2393.1,238.5,"W"],[2401.1,240.1,"W"],[2409.0,242.1,"W"],[2416.9,244.1,"W"],[2424.9,245.6,"W"],[2433.1,246.1,"W"],[2441.2,245.7,"W"],[2449.3,244.4,"W"],[2457.1,242.2,"W"],[2464.7,239.0,"W"],[2471.8,235.0,"W"],[2478.5,230.3,"W"],[2485.0,225.5,"W"],[2491.8,220.9,"W"],[2499.0,217.1,"W"],[2506.7,214.3,"W"],[2514.7,212.7,"W"],[2522.8,212.2,"W"],[2530.9,212.8,"W"],[2538.9,214.6,"W"],[2546.5,217.5,"W"],[2553.7,221.5,"W"],[2560.2,226.3,"W"],[2566.5,231.5,"W"],[2572.9,236.7,"W"],[2579.6,241.3,"W"],[2586.8,245.1,"W"],[2594.5,248.0,"W"],[2602.4,249.9,"W"],[2610.5,250.9,"W"],[2618.6,250.9,"W"],[2626.7,249.9,"W"],[2634.7,248.0,"W"],[2642.3,245.1,"W"],[2649.7,241.6,"W"],[2656.9,237.9,"W"],[2664.4,234.5,"W"],[2672.2,232.2,"W"],[2680.3,231.0,"W"],[2688.4,231.1,"W"],[2696.5,232.3,"W"],[2704.3,234.7,"W"],[2711.6,238.3,"W"],[2718.5,242.7,"W"],[2725.2,247.3,"W"],[2732.1,251.8,"W"],[2739.3,255.6,"W"],[2746.9,258.5,"W"],[2754.8,260.5,"W"],[2762.9,261.6,"W"],[2771.1,261.8,"W"],[2779.2,261.0,"W"],[2787.2,259.3,"W"],[2794.9,256.7,"W"],[2802.3,253.2,"W"],[2809.2,248.9,"W"],[2815.7,243.9,"W"],[2822.0,238.7,"W"],[2828.5,233.8,"W"],[2835.5,229.7,"W"],[2843.1,226.6,"W"],[2851.0,224.6,"W"],[2859.1,223.7,"W"],[2867.3,223.9,"W"],[2875.3,225.2,"W"],[2883.3,226.8,"W"],[2891.4,228.3,"W"],[2899.5,228.7,"W"],[2907.6,227.9,"W"],[2915.5,225.9,"W"],[2923.0,222.6,"W"],[2929.9,218.2,"W"],[2936.1,212.9,"W"],[2942.2,207.4,"W"],[2948.4,202.2,"W"],[2955.3,197.7,"W"],[2962.7,194.4,"W"],[2970.6,192.3,"W"],[2978.7,191.4,"W"],[2986.8,191.8,"W"],[2994.8,193.4,"W"],[3002.5,196.2,"W"],[3009.7,200.1,"W"],[3016.6,204.4,"W"],[3023.6,208.7,"W"],[3030.9,212.4,"W"],[3038.5,215.2,"W"],[3046.5,217.1,"W"],[3054.6,218.1,"W"],[3062.7,218.2,"W"],[3070.8,217.3,"W"],[3078.8,215.4,"W"],[3086.5,212.8,"W"],[3094.1,209.9,"W"],[3101.8,207.1,"W"],[3109.7,205.2,"W"],[3117.9,204.5,"W"],[3126.0,205.0,"W"],[3134.0,206.7,"W"],[3141.7,209.5,"W"],[3148.8,213.3,"W"],[3155.5,218.0,"W"],[3162.1,222.8,"W"],[3168.9,227.4,"W"],[3176.2,231.1,"W"],[3183.8,233.9,"W"],[3191.8,235.8,"W"],[3199.9,236.6,"W"],[3208.1,236.3,"W"],[3216.1,235.1,"W"],[3224.0,232.9,"W"],[3231.6,229.9,"W"],[3239.1,226.7,"W"],[3246.8,223.9,"W"],[3254.7,222.2,"W"],[3262.9,221.7,"W"],[3271.0,222.3,"W"],[3278.9,224.2,"W"],[3286.5,227.3,"W"],[3293.6,231.4,"W"],[3299.9,236.5,"W"],[3305.5,242.5,"W"],[3310.7,248.8,"W"],[3316.0,255.0,"W"],[3321.9,260.6,"W"],[3328.6,265.3,"W"],[3335.9,268.9,"W"],[3343.7,271.3,"W"],[3351.8,272.5,"W"],[3359.9,272.7,"W"],[3368.1,272.4,"W"],[3376.3,272.3,"W"],[3384.4,272.9,"W"],[3392.4,274.4,"W"],[3400.2,276.8,"W"],[3407.7,280.0,"W"],[3414.8,284.1,"W"],[3421.3,289.0,"W"],[3427.3,294.6,"W"],[3432.6,300.8,"W"],[3437.1,307.6,"W"],[3440.9,314.8,"W"],[3443.8,322.5,"W"],[3446.3,330.3,"W"],[3448.7,338.1,"W"],[3451.6,345.7,"W"],[3455.7,352.8,"W"],[3460.7,359.2,"W"],[3466.6,364.8,"W"],[3473.3,369.4,"W"],[3480.6,373.2,"W"],[3488.0,376.6,"W"],[3495.4,380.0,"W"],[3502.8,383.4,"W"],[3510.3,386.7,"W"],[3517.7,390.1,"W"],[3525.1,393.5,"W"],[3532.6,396.9,"W"],[3540.0,400.3,"W"],[3547.4,403.7,"W"],[3554.9,407.1,"C"],[3562.3,410.4,"C"],[3569.7,413.8,"C"],[3577.2,417.2,"C"],[3584.6,420.6,"C"],[3592.0,424.0,"C"],[3599.5,427.4,"C"],[3606.9,430.7,"C"],[3614.4,434.1,"C"],[3621.8,437.5,"C"],[3629.2,440.9,"C"],[3636.7,444.3,"C"],[3644.1,447.7,"C"],[3651.5,451.0,"C"],[3659.0,454.4,"C"],[3666.4,457.8,"C"],[3673.8,461.2,"C"],[3681.2,464.6,"C"],[3688.7,468.0,"C"],[3696.1,471.4,"C"],[3703.5,474.7,"C"],[3711.3,478.3,"C"],[3719.3,482.0,"C"],[3727.1,485.5,"C"],[3734.5,488.9,"C"],[3741.9,492.3,"C"],[3749.3,495.7,"C"]],"len":4195},"city":{"pts":[[0.0,0.0,"A"],[5.4,0.0,"A"],[11.2,0.0,"A"],[16.9,0.0,"A"],[22.5,-0.0,"A"],[27.5,-0.0,"A"],[33.0,-0.0,"A"],[38.6,-0.0,"A"],[44.1,-0.0,"A"],[49.7,-0.0,"A"],[55.3,-0.0,"A"],[60.8,-0.0,"A"],[66.4,-0.0,"A"],[71.9,-0.0,"A"],[77.5,-0.0,"C"],[83.0,-0.0,"C"],[88.6,-0.0,"C"],[94.1,-0.0,"C"],[99.7,-0.0,"C"],[105.2,-0.0,"C"],[110.8,-0.0,"C"],[116.3,-0.0,"C"],[121.9,-0.0,"C"],[127.5,-0.0,"C"],[133.0,-0.0,"C"],[138.6,-0.0,"C"],[144.1,-0.0,"C"],[149.7,-0.0,"C"],[155.2,-0.0,"C"],[160.8,-0.0,"C"],[166.3,-0.0,"C"],[171.9,-0.0,"C"],[177.5,-0.0,"C"],[183.0,-0.0,"C"],[188.6,-0.0,"C"],[194.1,-0.1,"C"],[199.7,-0.1,"C"],[205.2,-0.1,"C"],[210.8,-0.1,"C"],[216.3,-0.1,"C"],[221.9,-0.1,"C"],[227.4,-0.1,"C"],[233.0,-0.1,"C"],[238.6,-0.1,"C"],[243.8,-0.1,"C"],[249.4,-0.1,"C"],[254.7,-0.1,"C"],[259.8,-0.1,"C"],[265.1,-0.1,"C"],[270.3,-0.1,"C"],[275.6,-0.1,"C"],[280.9,-0.1,"C"],[287.0,-0.1,"C"],[292.4,-0.1,"C"],[298.0,-0.1,"C"],[303.5,-0.1,"C"],[309.1,-0.1,"C"],[314.6,-0.1,"C"],[320.2,-0.1,"C"],[325.7,-0.1,"C"],[331.3,-0.1,"C"],[336.9,-0.1,"C"],[342.4,-0.1,"C"],[348.0,-0.1,"C"],[353.5,-0.1,"C"],[359.1,-0.2,"C"],[364.6,-0.2,"C"],[370.2,-0.2,"C"],[375.7,-0.2,"C"],[381.3,-0.2,"C"],[386.9,-0.2,"C"],[392.4,-0.2,"C"],[398.0,-0.2,"C"],[403.5,-0.2,"C"],[409.1,-0.2,"C"],[414.6,-0.2,"C"],[420.2,-0.2,"C"],[425.7,-0.2,"C"],[431.3,-0.2,"C"],[436.9,-0.2,"C"],[442.4,-0.2,"C"],[448.0,-0.2,"C"],[453.5,-0.2,"C"],[459.1,-0.2,"C"],[464.6,-0.2,"C"],[470.2,-0.2,"C"],[475.7,-0.2,"C"],[481.3,-0.2,"C"],[486.9,-0.2,"C"],[492.4,-0.2,"C"],[498.0,-0.2,"C"],[503.4,-0.2,"C"],[509.2,-0.2,"C"],[514.7,-0.2,"C"],[519.9,-0.2,"C"],[525.4,-0.2,"C"],[530.4,-0.2,"C"],[535.5,-0.2,"C"],[540.6,-0.2,"C"],[546.5,-0.2,"C"],[551.8,-0.2,"C"],[557.4,-0.2,"C"],[562.9,-0.2,"C"],[568.5,-0.3,"C"],[574.1,-0.3,"C"],[579.6,-0.3,"C"],[585.2,-0.3,"C"],[590.7,-0.3,"C"],[596.3,-0.3,"C"],[601.8,-0.3,"C"],[607.4,-0.3,"C"],[613.0,-0.3,"C"],[618.5,-0.3,"C"],[624.1,-0.3,"C"],[629.6,-0.3,"C"],[635.2,-0.3,"C"],[640.8,-0.3,"C"],[646.3,-0.3,"C"],[651.9,-0.3,"C"],[657.4,-0.3,"C"],[663.0,-0.3,"C"],[668.5,-0.3,"C"],[674.1,-0.3,"C"],[679.6,-0.3,"C"],[685.2,-0.3,"C"],[690.7,-0.3,"C"],[696.3,-0.3,"C"],[701.9,-0.3,"C"],[707.4,-0.3,"C"],[713.0,-0.3,"C"],[718.5,-0.3,"C"],[724.1,-0.3,"C"],[729.6,-0.3,"C"],[735.2,-0.3,"C"],[740.7,-0.3,"C"],[746.3,-0.3,"C"],[751.9,-0.3,"C"],[757.4,-0.3,"C"],[762.9,-0.3,"C"],[769.0,-0.3,"C"],[774.7,-0.3,"C"],[779.9,-0.3,"C"],[785.3,-0.3,"C"],[790.5,-0.4,"C"],[796.3,-0.4,"C"],[801.4,-0.4,"C"],[807.3,-0.4,"C"],[812.6,-0.4,"C"],[818.2,-0.4,"C"],[823.8,-0.4,"C"],[829.3,-0.5,"C"],[834.9,-0.5,"C"],[840.4,-0.5,"C"],[846.0,-0.5,"C"],[851.5,-0.5,"C"],[857.1,-0.5,"C"],[862.6,-0.6,"C"],[868.2,-0.6,"C"],[873.8,-0.6,"C"],[879.3,-0.6,"C"],[884.9,-0.6,"C"],[890.4,-0.6,"C"],[896.0,-0.6,"C"],[901.5,-0.6,"C"],[907.1,-0.7,"C"],[912.6,-0.7,"C"],[918.2,-0.7,"C"],[923.8,-0.7,"C"],[929.3,-0.7,"C"],[934.9,-0.7,"C"],[940.4,-0.7,"C"],[946.0,-0.8,"C"],[951.5,-0.8,"C"],[957.1,-0.8,"C"],[962.7,-0.8,"C"],[968.2,-0.8,"C"],[973.8,-0.8,"C"],[979.3,-0.9,"C"],[984.9,-0.9,"C"],[990.4,-0.9,"C"],[996.0,-0.9,"C"],[1001.5,-0.9,"C"],[1007.1,-0.9,"C"],[1012.7,-1.0,"C"],[1018.2,-1.0,"C"],[1023.7,-1.0,"C"],[1029.8,-1.0,"C"],[1035.5,-1.0,"C"],[1040.7,-1.0,"C"],[1046.1,-1.1,"C"],[1051.3,-1.1,"C"],[1057.1,-1.1,"C"],[1062.2,-1.1,"C"],[1068.1,-1.1,"C"],[1073.4,-1.1,"C"],[1079.0,-1.2,"C"],[1084.6,-1.2,"C"],[1090.1,-1.2,"C"],[1095.7,-1.2,"C"],[1101.2,-1.2,"C"],[1106.8,-1.2,"C"],[1112.3,-1.3,"C"],[1117.9,-1.3,"C"],[1123.4,-1.3,"C"],[1129.0,-1.3,"C"],[1134.5,-1.3,"C"],[1140.1,-1.4,"C"],[1145.6,-1.4,"C"],[1151.2,-1.4,"C"],[1156.8,-1.4,"C"],[1162.3,-1.4,"C"],[1167.9,-1.4,"C"],[1173.4,-1.4,"C"],[1179.0,-1.4,"C"],[1184.5,-1.4,"C"],[1190.1,-1.4,"C"],[1195.7,-1.5,"C"],[1201.2,-1.5,"C"],[1206.8,-1.5,"C"],[1212.3,-1.5,"C"],[1217.9,-1.5,"C"],[1223.4,-1.5,"C"],[1229.0,-1.5,"C"],[1234.5,-1.5,"C"],[1240.1,-1.5,"C"],[1245.7,-1.5,"C"],[1251.2,-1.5,"C"],[1256.8,-1.5,"C"],[1262.3,-1.5,"C"],[1267.9,-1.5,"C"],[1273.4,-1.5,"C"],[1279.0,-1.5,"C"],[1284.5,-1.5,"C"],[1290.5,-1.5,"C"],[1296.3,-1.5,"C"],[1301.5,-1.5,"C"],[1306.5,-1.5,"C"],[1312.1,-1.5,"C"],[1317.9,-1.5,"C"],[1323.0,-1.5,"C"],[1328.9,-1.5,"C"],[1334.2,-1.5,"C"],[1339.8,-1.4,"C"],[1345.4,-1.4,"C"],[1350.9,-1.4,"C"],[1356.5,-1.4,"C"],[1362.0,-1.4,"C"],[1367.6,-1.4,"C"],[1373.1,-1.4,"C"],[1378.7,-1.3,"C"],[1384.2,-1.3,"C"],[1389.8,-1.3,"C"],[1395.4,-1.3,"C"],[1400.9,-1.3,"C"],[1406.5,-1.3,"C"],[1412.0,-1.3,"C"],[1417.6,-1.2,"C"],[1423.1,-1.2,"C"],[1428.7,-1.2,"C"],[1434.2,-1.2,"C"],[1439.8,-1.2,"C"],[1445.3,-1.2,"C"],[1450.9,-1.2,"C"],[1456.5,-1.2,"C"],[1462.0,-1.1,"C"],[1467.6,-1.1,"C"],[1473.1,-1.1,"C"],[1478.7,-1.1,"C"],[1484.2,-1.1,"C"],[1489.8,-1.1,"C"],[1495.4,-1.1,"C"],[1500.9,-1.1,"C"],[1506.5,-1.1,"C"],[1512.0,-1.0,"C"],[1517.6,-1.0,"C"],[1523.1,-1.0,"C"],[1528.7,-1.0,"C"],[1534.3,-1.0,"C"],[1539.8,-1.0,"C"],[1545.3,-1.0,"C"],[1551.4,-1.0,"C"],[1557.1,-1.0,"C"],[1562.3,-1.0,"C"]],"len":1565}};
+const pages = [...document.querySelectorAll('section.page')];
+const nav = document.getElementById('navlist');
+nav.innerHTML = pages.map(p => `<li><a href="#${p.id}">${p.dataset.title}</a></li>`).join('');
+document.getElementById('toc').innerHTML = pages.slice(1).map((p, i) => `<a class="panel" href="#${p.id}" style="text-decoration:none;color:var(--ink)"><h3>${i + 2}. ${p.dataset.title}</h3><p class="small" style="margin:0">${p.querySelector('h1').textContent}</p></a>`).join('');
+const drawers = {};
+function show() {
+  const id = (location.hash || '#overview').slice(1);
+  const idx = Math.max(0, pages.findIndex(p => p.id === id));
+  pages.forEach((p, i) => p.classList.toggle('on', i === idx));
+  nav.querySelectorAll('a').forEach((a, i) => { if (i === idx) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  const prev = pages[idx - 1], next = pages[idx + 1];
+  document.getElementById('foot').innerHTML = (prev ? `<a href="#${prev.id}">← ${prev.dataset.title}</a>` : '<span></span>') + (next ? `<a href="#${next.id}">${next.dataset.title} →</a>` : '');
+  document.title = '다타유 · ' + pages[idx].dataset.title;
+  (drawers[pages[idx].id] || (() => {}))();
+  window.scrollTo(0, 0);
+}
+window.addEventListener('hashchange', show);
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input,select')) return;
+  const idx = pages.findIndex(p => p.classList.contains('on'));
+  if (e.key === 'ArrowRight' && pages[idx + 1]) location.hash = pages[idx + 1].id;
+  if (e.key === 'ArrowLeft' && pages[idx - 1]) location.hash = pages[idx - 1].id;
+});
+const C = {ok:'#3CC4A0', warn:'#F2B33D', bad:'#FF7A59', blue:'#3D8BFF', road:'#232D38', line:'#2E3945', muted:'#A9B4C0', faint:'#8794A1', ink:'#F2F4F6', bg:'#0E1216'};
+function obs(el, fn) { new ResizeObserver(fn).observe(el); }
+
+/* ---------- 1. overview HMI ---------- */
+const hs = document.getElementById('hmiSvg');
+function drawHmi() {
+  const W = hs.clientWidth, H = hs.clientHeight; if (!W) return;
+  let path = '';
+  for (let i = 0; i <= 40; i++) { const t = i / 40; const y = H * (1.05 - t * 1.1); const x = W * 0.42 + Math.sin(t * 7.5) * W * 0.12 * t; path += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1); }
+  const g = 72, ang = Math.PI * (1 - g / 100), cx = W - 92, cy = H - 70, r = 52;
+  const arc = (a0, a1, col) => `<path d="M${cx + r * Math.cos(Math.PI * (1 - a0))} ${cy - r * Math.sin(Math.PI * (1 - a0))} A${r} ${r} 0 0 1 ${cx + r * Math.cos(Math.PI * (1 - a1))} ${cy - r * Math.sin(Math.PI * (1 - a1))}" stroke="${col}" stroke-width="9" fill="none"/>`;
+  hs.innerHTML = `<rect width="${W}" height="${H}" fill="#13201A"/>
+  ${[...Array(18)].map((_, i) => `<circle cx="${(W * ((i * 37) % 100) / 100).toFixed(0)}" cy="${(H * ((i * 53) % 100) / 100).toFixed(0)}" r="${8 + (i % 4) * 4}" fill="${i % 2 ? '#1E3326' : '#243D2D'}"/>`).join('')}
+  <path d="${path}" stroke="${C.road}" stroke-width="30" fill="none" stroke-linecap="round"/>
+  <path d="${path}" stroke="${C.blue}" stroke-width="5" fill="none" stroke-linecap="round" opacity=".9"/>
+  <g transform="translate(${W * 0.42} ${H * 0.68})"><circle r="22" fill="${C.blue}" opacity=".25"/><path d="M0 -13 L9 9 L0 4 L-9 9Z" fill="#fff" stroke="${C.blue}" stroke-width="2"/></g>
+  <rect x="16" y="16" width="150" height="62" rx="12" fill="#1A2129"/><text x="34" y="54" fill="${C.ink}" font-size="24" font-weight="800">220m</text><text x="112" y="54" fill="${C.muted}" font-size="13">굽은 길</text>
+  <rect x="${W - 190}" y="${H - 150}" width="174" height="134" rx="18" fill="#1A2129"/>
+  ${arc(0, .4, C.ok)}${arc(.4, .7, C.warn)}${arc(.7, 1, C.bad)}
+  <line x1="${cx}" y1="${cy}" x2="${cx + (r - 14) * Math.cos(ang)}" y2="${cy - (r - 14) * Math.sin(ang)}" stroke="${C.ink}" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="${cx - 34}" cy="${cy + 36}" r="17" fill="none" stroke="${C.bad}" stroke-width="3"/><circle cx="${cx - 40}" cy="${cy + 34}" r="2" fill="${C.ink}"/><circle cx="${cx - 28}" cy="${cy + 34}" r="2" fill="${C.ink}"/><path d="M${cx - 41} ${cy + 43} q7 -5 14 0" stroke="${C.ink}" stroke-width="2" fill="none"/>
+  <circle cx="${cx + 18}" cy="${cy + 36}" r="17" fill="${C.warn}"/><path d="M${cx + 8} ${cy + 36} q5 -8 10 0 t10 0" stroke="#1A1206" stroke-width="2.5" fill="none"/>
+  <text x="${cx}" y="${cy - 8}" text-anchor="middle" fill="${C.ink}" font-size="20" font-weight="800">72</text>`;
+}
+obs(hs, drawHmi); drawers.overview = drawHmi;
+
+/* ---------- 2. architecture ---------- */
+const LAYERS = [
+  {lab: '입력', sub: '차량·위치·재생', col: '#17263A', boxes: [
+    ['replay', '시나리오 CSV', 'ReplayDataSource'], ['pleos', 'Pleos Vehicle SDK', 'Brake · TurnSignal · SteeringWheel · Odometer'], ['aaos', 'AAOS Car API', '속도 · 조향 · 깜빡이'], ['navi', 'NaviHelper SDK', '다음 회전(TBT)'], ['gps', 'GPS', 'LocationManager']]},
+  {lab: '앱 계층', sub: 'app · data', col: '#1F2A1F', boxes: [
+    ['source', 'VehicleDataSource', '10Hz 샘플 생성'], ['vm', 'DataYouViewModel', '흐름 조정 · 화면 상태'], ['route', 'RouteGeometry', '경로 복원 · TBT'], ['loc', 'LiveLocator', '실시간 위치']]},
+  {lab: '엔진', sub: 'core-engine (순수 Kotlin)', col: '#2A2416', boxes: [
+    ['signal', 'SignalProcessor', '가속도 · 좌우 가속'], ['dose', 'PassengerTracker', '동승자별 게이지'], ['cause', 'Moment · PatternDetector', '원인 판별'], ['engine', 'DataYouEngine', '배지 · 정차 카드'], ['report', 'TripRecorder', '하차 리포트']]},
+  {lab: '화면', sub: 'app · ui (Compose)', col: '#2A1C18', boxes: [
+    ['start', 'StartScreen', '동승자 · 모드'], ['drive', 'DriveScreen', '주행 · 정차 카드'], ['maps', 'ScenarioMap · LiveMap', '지도'], ['reportUi', 'ReportScreen', '리포트']]},
+];
+const ARCH = {
+  replay: ['시나리오 재생', '<code>sample-data/*.csv</code>를 10Hz로 읽어 1·5·15배속으로 재생합니다. 전체를 미리 읽어 지도 경로도 만듭니다.', 'app/data/ReplayDataSource.kt'],
+  pleos: ['Pleos Vehicle SDK 2.3.2', '<code>check…Capabilities</code>로 지원 여부를 확인한 뒤 리스너를 등록합니다. 서비스 연결이 늦으면 1초 간격으로 최대 10번 다시 시도합니다. 미지원 채널은 ✗로 표시하고 건너뜁니다.', 'app/data/PleosVehicleDataSource.kt'],
+  aaos: ['AAOS Car API', '속도(<code>PERF_VEHICLE_SPEED</code>)는 항상 여기서 받습니다. Pleos SDK가 없는 환경에서는 핸들 각도(<code>PERF_STEERING_ANGLE</code>)와 깜빡이(<code>TURN_SIGNAL_STATE</code>)도 여기서 받습니다. 속도·핸들은 런타임 권한이 필요합니다.', 'app/data/PleosVehicleDataSource.kt · MainActivity.kt'],
+  navi: ['NaviHelper SDK 3.0.5', '내장 내비의 다음 회전 안내(TBT)를 리스너로 받고, 조용하면 1초마다 다시 요청합니다. 경로 안내 중이 아니면 예측 안내를 하지 않습니다.', 'app/data/PleosNavigation.kt'],
+  gps: ['GPS', '실시간 지도의 위치·방위, 그리고 핸들 각도가 없을 때 좌우 판단의 대체 경로입니다. 차량 속도가 0인데 GPS가 움직이면 GPS 속도를 씁니다.', 'app/data/LiveLocator.kt'],
+  source: ['VehicleDataSource', '재생과 실시간을 같은 인터페이스(<code>start(onSample, onEnd)</code>)로 감쌉니다. 실시간 소스는 콜백으로 들어온 마지막 값을 들고 있다가 10Hz로 샘플을 만듭니다.', 'app/data/VehicleDataSource.kt'],
+  vm: ['DataYouViewModel', '샘플을 엔진에 넣고, 결과로 화면 상태(<code>Screen.Start · Driving · Report</code>)를 만듭니다. 효과음·음성, 정차 카드 닫기, GPS 대체 경로 적용도 여기서 합니다.', 'app/DataYouViewModel.kt'],
+  route: ['RouteGeometry', '재생 데이터로 실제 궤적·도로 유형·차로 위치·정차 지점·회전 지점을 복원합니다. 시나리오 지도와 재생 모드 TBT가 모두 이걸 씁니다.', 'app/data/RouteGeometry.kt'],
+  loc: ['LiveLocator', 'GPS가 움직이면 그대로, 멈춰 있으면 차량 속도·회전으로 추정 이동합니다.', 'app/data/LiveLocator.kt'],
+  signal: ['SignalProcessor', '속도를 저역 필터 후 미분해 앞뒤 가속도와 급격함(jerk)을, 속도 × 회전 속도로 좌우 가속도를 구합니다. 회전 속도는 자이로·핸들 각도·GPS 방위 순으로 씁니다.', 'engine/signal/SignalProcessor.kt · Filters.kt · SteeringYaw.kt'],
+  dose: ['PassengerTracker', '동승자마다 게이지를 따로 계산합니다. 0.1~0.5Hz 파워 누적 + 이벤트 가산 − 회복. 원인별 기여도를 60초 가중으로 기록합니다.', 'engine/dose/PassengerTracker.kt'],
+  cause: ['MomentDetector · PatternDetector', '순간 이벤트(급제동·회생 감속·급출발·급회전)는 기준값을 0.3초 넘으면, 반복 패턴(끊어 밟기·연속 커브·정체)은 창 안의 횟수로 판별합니다.', 'engine/cause/*.kt'],
+  engine: ['DataYouEngine', '진입점 <code>process(sample)</code>. 가장 힘든 동승자를 고르고, 배지(30초 유지·1.2배 교체 규칙), 효과음 여부, 정차 카드, 예측 안내 여부를 정합니다.', 'engine/DataYouEngine.kt · EngineConfig.kt'],
+  report: ['TripRecorder', '주행이 끝나면 원인별 횟수·기여 비율, 10km당 이벤트, 가장 큰 개선점을 만듭니다. 정체는 "운전자 탓 아님"으로 따로 표시합니다.', 'engine/report/TripRecorder.kt'],
+  start: ['StartScreen', '동승자 유형 선택, 시나리오 또는 실시간 차량 데이터 선택.', 'app/ui/StartScreen.kt'],
+  drive: ['DriveScreen', '지도, 회전 안내, 속도, 동승자 얼굴 + 원인 배지, 정차 카드와 피드백 버튼, 데모 막대(배속·채널 상태).', 'app/ui/DriveScreen.kt · Icons.kt'],
+  maps: ['ScenarioMap · LiveMap', '재생: 복원한 경로를 도로 유형별로 그림. 실시간: OpenStreetMap(osmdroid, CARTO 어두운 타일).', 'app/ui/ScenarioMap.kt · LiveMap.kt'],
+  reportUi: ['ReportScreen', '원인별 기여 막대, 횟수, 다음 주행 팁, 부드러운 주행이면 칭찬 문구.', 'app/ui/ReportScreen.kt'],
+};
+const lay = document.getElementById('layers');
+lay.innerHTML = LAYERS.map((l, i) => `${i ? '<div class="arrow">↓</div>' : ''}<div class="layer"><div class="lab" style="background:${l.col}">${l.lab}<small>${l.sub}</small></div><div class="boxes">${l.boxes.map(b => `<button class="box" data-k="${b[0]}" aria-pressed="false"><b>${b[1]}</b><span>${b[2]}</span></button>`).join('')}</div></div>`).join('');
+function pickArch(k) {
+  lay.querySelectorAll('.box').forEach(b => b.setAttribute('aria-pressed', b.dataset.k === k));
+  const a = ARCH[k];
+  document.getElementById('archDetail').innerHTML = `<h3>${a[0]}</h3><p class="muted">${a[1]}</p><p class="small" style="margin:0">파일 · <code>${a[2]}</code></p>`;
+}
+lay.addEventListener('click', e => { const b = e.target.closest('.box'); if (b) pickArch(b.dataset.k); });
+pickArch('engine');
+
+/* ---------- 3. pipeline ---------- */
+const STEPS = [
+  ['수집', '데이터 소스가 10Hz로 <code>VehicleSample</code>을 만듭니다. 실시간은 채널별 마지막 값을 묶고, 재생은 CSV 한 줄을 그대로 씁니다.'],
+  ['신호 처리', '속도를 저역 필터(0.25초) 후 미분해 앞뒤 가속도, 다시 미분해 급격함(jerk). 좌우 가속도 = 속도 × 회전 속도. 회전 속도가 없으면 GPS 방위 변화로 구합니다.'],
+  ['대역 필터', '멀미를 일으키는 0.1~0.5Hz 성분만 남깁니다. 빠른 떨림과 아주 느린 변화는 걸러집니다.'],
+  ['게이지 누적', '동승자마다: 대역 파워 × 0.18 × 민감도를 더하고, 조용하면 초당 0.17씩 회복. 0~100, 40 주의 / 70 힘듦.'],
+  ['원인 판별', '순간 이벤트는 기준값을 0.3초 넘으면(동승자별 배율), 반복 패턴은 창 안 횟수로. 브레이크·깜빡이 값으로 급제동/회생, 차선 변경/회전을 가릅니다.'],
+  ['기여도', '게이지를 올린 양을 원인별 장부에 적고 60초 시간 가중으로 줄여 갑니다. 앞뒤 흔들림은 정체 → 끊어 밟기 → 최근 30초 순간 원인 순으로 탓을 돌립니다.'],
+  ['표시 규칙', '가장 힘든 동승자 한 명, 기여도 1위 원인 배지(30초 유지, 1.2배 넘어야 교체), 단계가 오를 때만 효과음, 회전 300m 전 예측 안내.'],
+  ['정차 · 하차', '2초 넘게 멈추면 정차 카드와 음성(90초 간격). 주행이 끝나면 원인별 리포트와 다음 주행 팁 하나.'],
+];
+const pipe = document.getElementById('pipe');
+pipe.insertAdjacentHTML('beforeend', STEPS.map((s, i) => `<button class="st" data-i="${i}" aria-pressed="false"><i>${i + 1}</i><b>${s[0]}</b></button>`).join(''));
+function pickStep(i) {
+  pipe.querySelectorAll('.st').forEach(b => b.setAttribute('aria-pressed', +b.dataset.i === i));
+  document.getElementById('pipeDetail').innerHTML = `<h3>${i + 1}. ${STEPS[i][0]}</h3><p class="muted" style="margin:0">${STEPS[i][1]}</p>`;
+}
+pipe.addEventListener('click', e => { const b = e.target.closest('.st'); if (b) pickStep(+b.dataset.i); });
+pickStep(3);
+
+/* ---------- 4. gauge simulator ---------- */
+const TYPES = [['아이', 1.4, .9], ['임산부', 1.5, .75], ['어르신', .8, .8], ['반려견', 1.3, .9], ['멀미 민감 동승자', 1.3, 1.0], ['동승자', 1.0, 1.0]];
+const gType = document.getElementById('gType'), gAmp = document.getElementById('gAmp'), gFreq = document.getElementById('gFreq'), gs = document.getElementById('gSvg');
+gType.innerHTML = TYPES.map((t, i) => `<option value="${i}">${t[0]} · 민감도 ${t[1]}배</option>`).join('');
+function simulate() {
+  const [, sens, scale] = TYPES[+gType.value], A = +gAmp.value, f = +gFreq.value, dt = .1;
+  const aH = 1 - Math.exp(-dt * 2 * Math.PI * .5), aL = 1 - Math.exp(-dt * 2 * Math.PI * .1);
+  let lh = 0, ll = 0, g = 0, level = 0, peak = 0, caution = null, ev = 0, over = 0, cool = 0;
+  const out = [];
+  for (let k = 0; k <= 2400; k++) {
+    const t = k * dt, a = t < 150 ? A * Math.sin(2 * Math.PI * f * t) : 0;
+    lh += aH * (a - lh); ll += aL * (a - ll);
+    const bp = lh - ll, pw = bp * bp;
+    let d = pw * .18 * sens * dt, moment = false;
+    cool = Math.max(0, cool - dt);
+    if (Math.abs(a) >= 3 * scale) { over += dt; if (over >= .3 && cool === 0) { d += 6 * sens; ev++; cool = 3; moment = true; } } else over = 0;
+    if (pw < .05 && !moment) d -= .17 * dt;
+    g = Math.min(100, Math.max(0, g + d));
+    if (level === 0 && g >= 40) level = 1; else if (level === 1 && g >= 70) level = 2; else if (level === 2 && g < 62) level = 1; else if (level === 1 && g < 32) level = 0;
+    if (caution === null && g >= 40) caution = t;
+    peak = Math.max(peak, g);
+    if (k % 5 === 0) out.push([t, g]);
+  }
+  return {out, peak, caution, ev};
+}
+function drawGauge() {
+  const W = gs.clientWidth, H = gs.clientHeight; if (!W) return;
+  document.getElementById('oAmp').textContent = (+gAmp.value).toFixed(1) + ' m/s²';
+  const f = +gFreq.value; document.getElementById('oFreq').textContent = f.toFixed(2) + 'Hz · ' + (1 / f).toFixed(0) + '초 왕복';
+  const r = simulate(), m = {l: 40, r: 16, t: 16, b: 34}, iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const X = t => m.l + t / 240 * iw, Y = v => m.t + ih * (1 - v / 100);
+  const pts = r.out.map(p => `${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(' ');
+  const ticks = (W < 520 ? [0, 120, 240] : [0, 60, 120, 180, 240]);
+  gs.innerHTML = `<rect x="${m.l}" y="${Y(100)}" width="${iw}" height="${Y(70) - Y(100)}" fill="${C.bad}" opacity=".10"/>
+  <rect x="${m.l}" y="${Y(70)}" width="${iw}" height="${Y(40) - Y(70)}" fill="${C.warn}" opacity=".08"/>
+  ${[0, 40, 70, 100].map(v => `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${C.line}"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end" fill="${C.faint}" font-size="13">${v}</text>`).join('')}
+  <text x="${W - m.r - 4}" y="${Y(70) + 16}" text-anchor="end" fill="${C.bad}" font-size="13">힘듦</text>
+  <text x="${W - m.r - 4}" y="${Y(40) + 16}" text-anchor="end" fill="${C.warn}" font-size="13">주의</text>
+  <line x1="${X(150)}" x2="${X(150)}" y1="${m.t}" y2="${H - m.b}" stroke="${C.faint}" stroke-dasharray="4 4"/>
+  <text x="${X(150) + 6}" y="${m.t + 14}" fill="${C.faint}" font-size="13">직진 시작</text>
+  ${ticks.map(t => `<text x="${X(t)}" y="${H - 10}" text-anchor="middle" fill="${C.faint}" font-size="13">${t}초</text>`).join('')}
+  <polyline points="${X(0)},${Y(0)} ${pts} ${X(240)},${Y(0)}" fill="${C.blue}" opacity=".18"/>
+  <polyline points="${pts}" fill="none" stroke="${C.blue}" stroke-width="3" stroke-linejoin="round"/>`;
+  const pk = r.peak;
+  const e = document.getElementById('rPeak'); e.textContent = pk.toFixed(0); e.style.color = pk >= 70 ? C.bad : pk >= 40 ? C.warn : C.ok;
+  document.getElementById('rCaution').textContent = r.caution === null ? '없음' : r.caution.toFixed(0) + '초';
+  document.getElementById('rEvents').textContent = r.ev + '회';
+}
+[gType, gAmp, gFreq].forEach(el => el.addEventListener('input', drawGauge));
+obs(gs, drawGauge); drawers.gauge = drawGauge;
+
+/* ---------- 5. causes ---------- */
+const CAUSES = [
+  ['m', '브레이크 급제동', '감속 3.0m/s² 이상 + 브레이크 밟음', '브레이크를 조금 일찍, 약하게 밟아보세요', 'Brake', 'M4 12 L12 4 L20 12 M12 4 V20'],
+  ['m', '회생·관성 급감속', '감속 3.0m/s² 이상 + 브레이크 안 밟음', '회생제동 단계를 한 단계 낮춰보세요', 'Brake (없으면 급제동으로 합쳐짐)', 'M6 8 a7 7 0 1 1 0 8 M6 16 l-2 3 M6 16 l3 1'],
+  ['m', '급출발', '가속 2.5m/s² 이상', '출발은 천천히 해주세요', '속도', 'M4 20 L12 6 L20 20 M8 14 h8'],
+  ['m', '급차선변경·급회전', '좌우 3.0m/s² 이상. 깜빡이 켬 = 차선 변경, 끔 = 회전', '차선 변경과 회전은 여유 있게 해주세요', '핸들 각도 · 깜빡이', 'M6 20 V14 Q6 8 12 8 H19 M15 4 l4 4 -4 4'],
+  ['p', '브레이크 끊어 밟기', '시속 15km 이상에서 60초에 브레이크 6번 이상', '한 번에 부드럽게 밟아보세요', 'Brake', 'M3 12 h3 v-5 h3 v10 h3 v-10 h3 v10 h3 v-5 h3'],
+  ['p', '좌우 흔들림(연속 커브)', '30초 안에 좌우 방향 전환 4번 이상', '커브 앞에서 미리 속도를 줄여보세요', '핸들 각도 (없으면 GPS)', 'M3 12 q4.5 -8 9 0 t9 0'],
+  ['s', '정체 가다 서다', '120초 안에 정지 3번 이상, 최고 시속 30km 이하', '정체 구간이에요. 차간거리를 넉넉히 두세요 (운전자 탓 아님)', '속도', 'M5 9 h14 M5 15 h14 M8 6 v12 M16 6 v12'],
+];
+const KIND = {m: ['순간', '#FF9B80'], p: ['반복', C.warn], s: ['상황', C.muted]};
+const cf = document.getElementById('causeFilter');
+cf.innerHTML = [['all', '전체 7'], ['m', '순간 4'], ['p', '반복 2'], ['s', '상황 1']].map((f, i) => `<button class="btn" data-f="${f[0]}" aria-pressed="${i === 0}">${f[1]}</button>`).join('');
+function drawCauses(f) {
+  document.getElementById('causeList').innerHTML = CAUSES.filter(c => f === 'all' || c[0] === f).map(c => `<article class="cause"><div class="top"><span class="glyph" style="background:${KIND[c[0]][1]}"><svg width="24" height="24" viewBox="0 0 24 24"><path d="${c[5]}" stroke="#1A1206" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div><h3 style="margin:0">${c[1]}</h3><span class="chip">${KIND[c[0]][0]}</span></div></div><dl><dt>판별</dt><dd>${c[2]}</dd><dt>코칭</dt><dd>${c[3]}</dd><dt>필요 데이터</dt><dd>${c[4]}</dd></dl></article>`).join('');
+}
+cf.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; cf.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); drawCauses(b.dataset.f); });
+drawCauses('all');
+
+/* ---------- 6. screens ---------- */
+const SHOTS = [
+  ['1_start.png', '출발', '동승자 유형과 데이터(시나리오 또는 실시간)를 고릅니다.', ['동승자 여러 명 선택 가능', '유형마다 민감도·이벤트 배율이 다름', '실시간을 고르면 차량·위치 권한을 요청']],
+  ['2_driving_caution.png', '주행 중 · 주의', '게이지가 40을 넘으면 오른쪽 아래에 동승자 얼굴과 원인 배지가 나타납니다.', ['글자 없이 얼굴 표정 + 원인 아이콘', '얼굴 테두리 색이 단계(주의 노랑)', '단계가 오를 때 효과음 1회']],
+  ['3_driving_discomfort.png', '주행 중 · 힘듦', '강변 연속 커브에서 게이지가 70을 넘은 순간입니다. 회전 안내 칸이 강조되면 예측 안내 상태입니다.', ['얼굴 테두리 주황 = 힘듦', '배지 = 좌우 흔들림(연속 커브)', '지도는 실제 데이터로 복원한 굽이길']],
+  ['4_stop_card.png', '정차 카드', '차가 멈추면 원인과 개선 팁을 보여주고 음성으로 읽어 줍니다.', ['출발하면 자동으로 닫힘', '"괜찮아요 / 속 안 좋아요"로 민감도 보정', '같은 카드는 90초 간격']],
+  ['5_report.png', '하차 리포트', '원인별 기여 비율과 횟수, 다음 주행 팁 하나를 보여줍니다.', ['정체는 "운전자 탓 아님"으로 따로 표시', '10km당 이벤트 수', '부드러운 주행이면 칭찬 문구']],
+];
+const seg = document.getElementById('shotSeg');
+seg.innerHTML = SHOTS.map((s, i) => `<button class="btn" data-i="${i}" aria-pressed="${i === 1}">${s[1]}</button>`).join('');
+function pickShot(i) {
+  const s = SHOTS[i];
+  seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.i === i));
+  const img = document.getElementById('shotImg'); img.src = 'img/' + s[0]; img.alt = s[1] + ' 화면';
+  document.getElementById('shotCap').textContent = s[2];
+  document.getElementById('shotRules').innerHTML = `<h3>${s[1]}</h3><ul class="tight">${s[3].map(x => `<li>${x}</li>`).join('')}</ul>`;
+}
+seg.addEventListener('click', e => { const b = e.target.closest('button'); if (b) pickShot(+b.dataset.i); });
+pickShot(1);
+
+/* ---------- 7. sdk environments ---------- */
+const ENVS = {
+  pleos: ['Pleos 차량', {speed: 'AAOS 속도', brake: 'Vehicle SDK Brake', turn: 'Vehicle SDK TurnSignal', steer: 'Vehicle SDK SteeringWheel', odo: 'Vehicle SDK Odometer', tbt: 'NaviHelper TBT', gps: 'GPS'}, '모든 채널을 받습니다. 원인 7종을 모두 구분할 수 있습니다.'],
+  aaos: ['일반 AAOS 에뮬레이터', {speed: 'AAOS 속도', brake: null, turn: 'AAOS TURN_SIGNAL_STATE', steer: 'AAOS PERF_STEERING_ANGLE', odo: null, tbt: null, gps: 'GPS'}, 'Pleos 서비스가 없어 브레이크·주행거리·내비를 못 받습니다. 급감속은 모두 급제동으로 분류되고, 주행거리는 속도 적분값을 씁니다.'],
+  nosteer: ['핸들 각도 미지원 차', {speed: 'AAOS 속도', brake: 'Vehicle SDK Brake', turn: 'Vehicle SDK TurnSignal', steer: 'GPS 방위각으로 대체 (약 1Hz)', odo: 'Vehicle SDK Odometer', tbt: 'NaviHelper TBT', gps: 'GPS'}, '좌우 판단을 GPS 방위로 합니다. 연속 커브는 같게 잡히지만 짧은 차선 변경은 놓칠 수 있습니다.'],
+  replay: ['시나리오 재생', {speed: 'CSV', brake: 'CSV', turn: 'CSV', steer: 'CSV 회전 속도 (또는 방위각)', odo: '속도 적분', tbt: '복원한 경로의 실제 회전 지점', gps: '쓰지 않음 (데이터로 그린 지도)'}, '같은 엔진에 녹화 데이터를 넣습니다. 지도와 회전 안내도 데이터로 만듭니다.'],
+};
+const CH = [['speed', '속도', '가감속·급격함, 정차 판단'], ['brake', '브레이크 페달', '급제동 vs 회생 감속, 끊어 밟기'], ['turn', '방향지시등', '차선 변경 vs 회전'], ['steer', '핸들 각도', '좌우 가속, 연속 커브'], ['odo', '주행거리', '리포트 거리, 10km당 이벤트'], ['tbt', '다음 회전', '예측 안내'], ['gps', '위치', '실시간 지도, 좌우 대체 경로']];
+const envSeg = document.getElementById('envSeg');
+envSeg.innerHTML = Object.entries(ENVS).map(([k, v], i) => `<button class="btn" data-e="${k}" aria-pressed="${i === 0}">${v[0]}</button>`).join('');
+function pickEnv(k) {
+  envSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.e === k));
+  const e = ENVS[k];
+  document.querySelector('#envTable tbody').innerHTML = CH.map(c => { const s = e[1][c[0]]; return `<tr><td data-l="채널"><b>${c[1]}</b></td><td data-l="출처" class="${s ? 'src' : 'lost'}">${s ? (s.includes('대체') ? `<span class="warn">${s}</span>` : `<span class="ok">✓</span> ${s}`) : '없음'}</td><td data-l="쓰는 곳">${c[2]}</td></tr>`; }).join('');
+  document.getElementById('envNote').textContent = e[2];
+}
+envSeg.addEventListener('click', ev => { const b = ev.target.closest('button'); if (b) pickEnv(b.dataset.e); });
+pickEnv('pleos');
+const API = [
+  ['AAOS <code>PERF_VEHICLE_SPEED</code>', '가감속 계산', '구현', 'ok'],
+  ['Vehicle SDK <code>Brake</code> · <code>TurnSignal</code> · <code>SteeringWheel</code> · <code>Odometer</code>', '원인 구분, 좌우 가속, 리포트 거리', '구현 · 에뮬레이터 검증 중', 'warn'],
+  ['NaviHelper <code>addListener</code> · <code>getTBTInfo</code>', '다음 회전 예측 안내', '구현 · 에뮬레이터 검증 중', 'warn'],
+  ['AAOS <code>PERF_STEERING_ANGLE</code> · <code>TURN_SIGNAL_STATE</code>', 'Pleos 미탑재 환경 대체 경로', '구현', 'ok'],
+  ['Android GPS · OpenStreetMap', '실시간 지도, 좌우 대체 경로', '구현', 'ok'],
+  ['Gleo AI TTS (기기 내)', '정차 시 음성 (현재 Android 기본 TTS)', 'PT 전', 'muted'],
+  ['AAOS 기어·시동·주차 브레이크, 화면 제약 매니저', '자동 시작·종료, 화면 제약 연동', 'PT 전', 'muted'],
+  ['Gleo STT · LLM, Vehicle SDK HVAC · Window', '음성 보정, 리포트 요약, 자동 케어', 'Todo', 'muted'],
+];
+document.getElementById('apiRows').innerHTML = API.map(a => `<tr><td data-l="API">${a[0]}</td><td data-l="용도">${a[1]}</td><td data-l="상태" class="${a[3]}" style="white-space:nowrap">${a[2]}</td></tr>`).join('');
+
+/* ---------- 8. maps ---------- */
+const KCOL = {C: '#7E8B98', A: '#7CC4FF', H: '#3D8BFF', W: '#3CC4A0'};
+const KNAME = {C: '시내', A: '간선도로', H: '고속도로', W: '굽이길'};
+const RS = [['family', '가족 나들이 (약 9분)'], ['mountain', '산길 연속 커브'], ['city', '시내 급가감속']];
+let curRoute = 'family';
+const rSeg = document.getElementById('routeSeg'), rs = document.getElementById('rSvg'), rPos = document.getElementById('rPos');
+rSeg.innerHTML = RS.map((r, i) => `<button class="btn" data-r="${r[0]}" aria-pressed="${i === 0}">${r[1]}</button>`).join('');
+function drawRoute() {
+  const W = rs.clientWidth, H = rs.clientHeight; if (!W) return;
+  const R = ROUTES[curRoute], P = R.pts, pad = 28;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  P.forEach(p => { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); });
+  const sc = Math.min((W - 2 * pad) / Math.max(1, x1 - x0), (H - 2 * pad) / Math.max(1, y1 - y0));
+  const ox = (W - (x1 - x0) * sc) / 2, oy = (H - (y1 - y0) * sc) / 2;
+  const T = p => [ox + (p[0] - x0) * sc, H - (oy + (p[1] - y0) * sc)];
+  let segs = '', cur = null, d = '', prev = null;
+  const flush = () => { if (d) segs += `<path d="${d}" stroke="${KCOL[cur]}" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`; };
+  P.forEach(p => {
+    const [x, y] = T(p), pt = `${x.toFixed(1)} ${y.toFixed(1)}`;
+    if (p[2] !== cur) { flush(); cur = p[2]; d = 'M' + (prev || pt); }
+    d += ' L' + pt; prev = pt;
+  });
+  flush();
+  const k = Math.min(P.length - 1, Math.round(+rPos.value / 1000 * (P.length - 1)));
+  const [cx, cy] = T(P[k]), [sx, sy] = T(P[0]), [ex, ey] = T(P[P.length - 1]);
+  const km = (R.len * k / (P.length - 1) / 1000).toFixed(2);
+  document.getElementById('oPos').textContent = `${km}km / ${(R.len / 1000).toFixed(1)}km · ${KNAME[P[k][2]]}`;
+  rs.innerHTML = `<path d="${P.map((p, i) => (i ? 'L' : 'M') + T(p).map(v => v.toFixed(1)).join(' ')).join(' ')}" stroke="${C.road}" stroke-width="14" fill="none" stroke-linecap="round" stroke-linejoin="round"/>${segs}
+  <circle cx="${sx}" cy="${sy}" r="6" fill="${C.ink}"/><circle cx="${ex}" cy="${ey}" r="7" fill="${C.bg}" stroke="${C.ok}" stroke-width="4"/>
+  <circle cx="${cx}" cy="${cy}" r="14" fill="${C.blue}" opacity=".3"/><circle cx="${cx}" cy="${cy}" r="7" fill="#fff" stroke="${C.blue}" stroke-width="3"/>
+  <text x="${W - 14}" y="${H - 12}" text-anchor="end" fill="${C.faint}" font-size="13">북쪽 위 · 100m = ${(100 * sc).toFixed(0)}px</text>`;
+}
+rSeg.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; curRoute = b.dataset.r; rSeg.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); drawRoute(); });
+rPos.addEventListener('input', drawRoute);
+obs(rs, drawRoute); drawers.maps = drawRoute;
+const GAL = [['map_mountain.png', '산길 연속 커브 · 숲 사이 2차로, 커브가 잘 보이게 확대'], ['map_highway_lane_change.png', '고속도로 급차선변경 · 3차로에서 한 차로 이동'], ['map_city_stop.png', '시내 정차 · 정지선과 신호등'], ['map_traffic.png', '정체 가다 서다 · 앞차 행렬'], ['map_family_turn.png', '가족 나들이 · 실제 회전 지점까지 120m 우회전 안내'], ['map_family_curves.png', '가족 나들이 · 강변 커브에서 게이지 힘듦']];
+document.getElementById('mapGallery').innerHTML = GAL.map(g => `<figure><img class="shot" src="img/${g[0]}" alt="${g[1]}" width="1280" height="560" loading="lazy"><figcaption>${g[1]}</figcaption></figure>`).join('');
+
+/* ---------- 9. verify ---------- */
+const SC = [
+  ['family_trip', '가족 나들이', 82, '브레이크 급제동 2, 회생·관성 급감속 3, 급출발 1, 연속 커브 3, 정체 1'],
+  ['smooth_highway', '부드러운 고속도로', 0, '없음'],
+  ['city_aggressive', '시내 급가감속', 100, '브레이크 급제동 6, 급출발 6'],
+  ['ev_strong_regen', '전기차 강한 회생제동', 50, '회생·관성 급감속 5'],
+  ['traffic_stop_and_go', '정체 가다 서다', 13, '정체 2 (운전자 탓 아님)'],
+  ['brake_pumping', '브레이크 끊어 밟기', 8, '끊어 밟기 2'],
+  ['mountain_curves', '산길 연속 커브', 93, '연속 커브 6'],
+  ['mountain_curves_gps_only', '산길 (GPS만)', 89, '연속 커브 6'],
+  ['abrupt_lane_change', '급차선변경', 10, '급차선변경·급회전 1'],
+];
+document.getElementById('scRows').innerHTML = SC.map(s => `<tr><td data-l="시나리오"><b>${s[1]}</b><br><span class="small"><code>${s[0]}</code></span></td><td data-l="최고 게이지" class="num" style="color:${s[2] >= 70 ? C.bad : s[2] >= 40 ? C.warn : C.ok};font-weight:700">${s[2]}</td><td data-l="원인">${s[3]}</td></tr>`).join('');
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-copy]'); if (!b) return;
+  navigator.clipboard?.writeText(b.dataset.copy).then(() => { b.textContent = '복사됨'; setTimeout(() => b.textContent = '복사', 1500); }).catch(() => { b.textContent = '선택해서 복사하세요'; });
+});
+
+show();
+}
+</script>
+</body>
+</html>

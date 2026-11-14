@@ -17,6 +17,7 @@
 - [원인 7종](#원인-7종)
 - [Pleos Connect SDK / API 사용 계획](#pleos-connect-sdk--api-사용-계획)
 - [AAOS 앱 (M2)](#aaos-앱-m2)
+- [아키텍처·기능 개요 문서](#아키텍처기능-개요-문서)
 - [인터랙티브 프로토타입](#인터랙티브-프로토타입)
 - [빠르게 실행해 보기](#빠르게-실행해-보기)
 - [시나리오 재생 결과](#시나리오-재생-결과)
@@ -163,6 +164,10 @@ Pleos SDK 정책(*AAOS 표준 API가 있으면 표준 우선, 제조사 특화 �
 > → [AAOS 에뮬레이터 설치·실행 문제 해결](docs/troubleshooting-aaos-install.md)
 
 빌드된 APK: `./gradlew :app:assembleDebug` → `app/build/outputs/apk/debug/app-debug.apk`
+
+## 아키텍처·기능 개요 문서
+
+[`docs/overview/index.html`](docs/overview/index.html) — 주제별 10페이지 인터랙티브 문서입니다(개요, 시스템 아키텍처, 데이터 흐름, 멀미 게이지 시뮬레이터, 원인 7종, 화면 규칙, 데이터 채널과 SDK, 지도, 검증, 로드맵). 브라우저로 열거나 GitHub Pages로 볼 수 있습니다.
 
 ## 인터랙티브 프로토타입
 
