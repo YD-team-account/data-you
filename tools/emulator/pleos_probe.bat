@@ -3,7 +3,7 @@ chcp 65001 >nul
 rem DataYou - Pleos Connect Emulator probe (M3)
 rem 1) installs the M3 APK  2) checks how vehicle data can be injected  3) runs the app in live mode
 rem Output: dist\pleos_probe_log.txt, dist\pleos_props.txt
-cd /d "%~dp0.."
+cd /d "%~dp0..\.."
 if not exist dist mkdir dist
 set LOG=%CD%\dist\pleos_probe_log.txt
 set PROPS=%CD%\dist\pleos_props.txt

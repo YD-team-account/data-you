@@ -2,8 +2,8 @@
 chcp 65001 >nul
 rem DataYou - 좌우 흔들림 시연 (연속 커브 + 급차선변경)
 rem 에뮬레이터 차량 신호(속도·핸들 각도·방향지시등)를 약 2분간 주입합니다.
-rem 신호 프로필: tools/gen_sway_demo.py  /  주입 스크립트: tools/sway_demo.sh
-cd /d "%~dp0.."
+rem 신호 프로필: tools/emulator/gen_sway_demo.py  /  주입 스크립트: tools/emulator/sway_demo.sh
+cd /d "%~dp0..\.."
 if not exist dist mkdir dist
 set LOG=%CD%\dist\sway_demo_log.txt
 set ADB=%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe
@@ -29,7 +29,7 @@ pause
 
 "%ADB%" root >nul 2>&1
 "%ADB%" wait-for-device
-"%ADB%" push tools\sway_demo.sh /data/local/tmp/sway_demo.sh >nul
+"%ADB%" push tools\emulator\sway_demo.sh /data/local/tmp/sway_demo.sh >nul
 "%ADB%" logcat -c
 echo 주입 시작: 0~12초 출발, 17~62초 연속 커브, 72~77초 급차선변경, 85초~ 정차
 "%ADB%" shell sh /data/local/tmp/sway_demo.sh

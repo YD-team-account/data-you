@@ -1,8 +1,8 @@
 @echo off
 chcp 65001 >nul
 rem DataYou - AAOS emulator install fix
-rem See docs/troubleshooting-aaos-install.md
-cd /d "%~dp0.."
+rem See docs/guides/troubleshooting-aaos-install.md
+cd /d "%~dp0..\.."
 if not exist dist mkdir dist
 set LOG=%CD%\dist\fix_install_log.txt
 set ADB=%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe

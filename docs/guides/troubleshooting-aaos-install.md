@@ -28,7 +28,7 @@ flowchart TD
     C --> D{해결?}
     B -- 예 --> E
     D -- 예 --> Z([완료])
-    D -- 아니오 --> E["tools/fix_install.bat 더블클릭<br/>(macOS/Linux: tools/fix_install.sh)"]
+    D -- 아니오 --> E["tools/emulator/fix_install.bat 더블클릭<br/>(macOS/Linux: tools/emulator/fix_install.sh)"]
     E --> F{"로그의 [launch]가<br/>Status: ok?"}
     F -- 예 --> Z
     F -- 아니오 --> G{"로그에 무엇이 보이나"}
@@ -45,7 +45,7 @@ flowchart TD
 배포 APK가 이미 설치돼 있으면 "기존 앱을 제거할까요?"가 뜰 수 있습니다. **OK**를 누르세요(서명이 달라서 묻는 것입니다).
 
 ### 2. 스크립트로 진단·재설치
-Windows는 `tools\fix_install.bat`, macOS/Linux는 `tools/fix_install.sh`를 실행합니다.
+Windows는 `tools\emulator\fix_install.bat`, macOS/Linux는 `tools/emulator/fix_install.sh`를 실행합니다.
 
 1. 사용자 목록과 현재 사용자 확인
 2. 기존 앱을 **모든 사용자에서** 제거 (서명 충돌 해소)

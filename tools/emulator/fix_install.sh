@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # DataYou - AAOS emulator install fix (macOS / Linux)
-# See docs/troubleshooting-aaos-install.md
+# See docs/guides/troubleshooting-aaos-install.md
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 ADB="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}/platform-tools/adb"
 [ -x "$ADB" ] || ADB=adb
 APK=app/build/outputs/apk/debug/app-debug.apk

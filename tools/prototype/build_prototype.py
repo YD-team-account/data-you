@@ -2,11 +2,11 @@
 
 사용법 (프로젝트 루트):
   ./gradlew :core-engine:run --args="timeline docs/prototype/timeline.json"
-  python3 tools/build_prototype.py
+  python3 tools/prototype/build_prototype.py
 """
 from pathlib import Path
 
-root = Path(__file__).resolve().parent.parent
+root = Path(__file__).resolve().parent.parent.parent
 proto = root / "docs" / "prototype"
 template = (proto / "template.html").read_text(encoding="utf-8")
 timeline = (proto / "timeline.json").read_text(encoding="utf-8")

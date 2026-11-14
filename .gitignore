@@ -9,3 +9,6 @@ captures/
 .kotlin/
 app/screenshots/
 dist/
+
+# 동기화 중 옮겨 둔 이전 사본 (개발 PC 전용)
+_to_delete/
