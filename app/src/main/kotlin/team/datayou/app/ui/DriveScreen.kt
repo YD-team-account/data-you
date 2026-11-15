@@ -1,10 +1,6 @@
 package team.datayou.app.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -122,7 +118,9 @@ fun DriveScreen(s: Screen.Driving, vm: DataYouActions) {
             if (focus != null) DataYouChip(
                 focus.profile.type, focus.level,
                 badge = if (focus.level != GaugeLevel.COMFORT) s.badge else null,
-                pulse = s.preAlert, reaction = s.reaction, resting = s.resting,
+                highlight = s.preAlert,
+                holding = if (s.reactionShowing) s.reaction?.kind else null,
+                resting = s.resting,
             )
         }
 
@@ -135,7 +133,7 @@ fun DriveScreen(s: Screen.Driving, vm: DataYouActions) {
             modifier = Modifier.align(Alignment.CenterEnd).padding(28.dp),
             enter = fadeIn() + slideInVertically { it / 6 },
             exit = fadeOut(),
-        ) { s.stopCard?.let { StopCardView(it, s.feedbackNote, vm) } }
+        ) { s.stopCard?.let { StopCardView(it, s.feedbackNote, vm, s.stopCardReplay) } }
 
         s.liveProblem?.let { problem ->
             Text(
@@ -152,62 +150,76 @@ private fun DataYouChip(
     type: team.datayou.engine.model.PassengerType,
     level: GaugeLevel,
     badge: team.datayou.engine.model.Cause?,
-    pulse: Boolean,
-    reaction: team.datayou.engine.model.Reaction? = null,
+    highlight: Boolean,
+    holding: team.datayou.engine.model.ReactionKind? = null,
     resting: Boolean = false,
 ) {
-    // 예측 안내 중에만 아바타가 숨쉬듯 커졌다 작아진다 (무한 애니메이션은 이때만 돌린다)
-    val k = if (pulse) {
-        val t = rememberInfiniteTransition(label = "pulse")
-        t.animateFloat(1f, 1.08f, infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "k").value
-    } else 1f
-
-    // 캐릭터 반응: 동작 정의(ReactionMotion)와 그림(CharacterRenderer)은 바깥에서 주입받는다
+    // 주행 중 칩은 움직이지 않는다 (Android for Cars 품질 기준 SA-1: 주행 중 움직이는 그래픽 금지).
+    //  - 반응: 동작 대신 정지 자세(holdPose)로 바뀌었다가 돌아온다 — 아이콘이 바뀌는 것과 같은 수준의 변화
+    //  - 예측 안내: 펄스 대신 파란 테두리 강조
     val motion = team.datayou.app.ui.anim.LocalReactionMotion.current
     val renderer = team.datayou.app.ui.anim.LocalCharacterRenderer.current
-    val progress = remember { Animatable(1f) }
-    val reduceMotion = rememberReduceMotion()
-    LaunchedEffect(reaction?.timestampMs) {
-        val r = reaction ?: return@LaunchedEffect
-        val ms = motion.durationMs(r.kind)
-        if (reduceMotion || ms <= 0) return@LaunchedEffect
-        progress.snapTo(0f)
-        progress.animateTo(1f, tween(ms, easing = LinearEasing))
-    }
-    val playing = reaction != null && progress.value < 1f
-    val pose = if (playing) motion.pose(reaction!!.kind, progress.value) else team.datayou.app.ui.anim.MotionPose()
+    val pose = holding?.let { motion.holdPose(it) } ?: team.datayou.app.ui.anim.MotionPose()
     val mood = when {
-        playing -> motion.mood(reaction!!.kind)
+        holding != null -> motion.mood(holding)
         resting && level == GaugeLevel.COMFORT -> FaceMood.RESTING
         else -> FaceMood.NORMAL
     }
+    val edge = if (highlight) Palette.link else Color(0xFF34404D)
 
     Row(
         Modifier
             .background(Palette.chip, RoundedCornerShape(50))
-            .border(1.dp, Color(0xFF34404D), RoundedCornerShape(50))
+            .border(if (highlight) 3.dp else 1.dp, edge, RoundedCornerShape(50))
             .padding(start = 8.dp, end = 14.dp, top = 8.dp, bottom = 8.dp)
             .semantics {
                 liveRegion = LiveRegionMode.Polite
                 contentDescription = "${type.label} ${level.label()}" + (badge?.let { ", ${it.label}" } ?: "") +
-                    (if (mood == FaceMood.RESTING) ", 편안히 쉬는 중" else "")
+                    (if (mood == FaceMood.RESTING) ", 편안히 쉬는 중" else "") + (if (highlight) ", 곧 회전" else "")
             },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(
-            Modifier.scale(k).graphicsLayer {
-                rotationX = pose.rotationX
-                rotationZ = pose.rotationZ
-                translationX = pose.dxDp * density
-                translationY = pose.dyDp * density
-                scaleX = pose.scale
-                scaleY = pose.scale
-                cameraDistance = 12f * density
-            },
-        ) { renderer(type, level, mood, 64.dp, Modifier) }
+        Box(Modifier.poseLayer(pose)) { renderer(type, level, mood, 64.dp, Modifier) }
         badge?.let { CauseBadge(it, 44.dp) }
     }
+}
+
+/** 자세를 아바타에 적용 */
+private fun Modifier.poseLayer(pose: team.datayou.app.ui.anim.MotionPose) = graphicsLayer {
+    rotationX = pose.rotationX
+    rotationZ = pose.rotationZ
+    translationX = pose.dxDp * density
+    translationY = pose.dyDp * density
+    scaleX = pose.scale
+    scaleY = pose.scale
+    cameraDistance = 12f * density
+}
+
+/**
+ * 정차 카드의 캐릭터: 차가 멈춘 뒤에만 "방금 이렇게 쏠렸어요" 동작을 두 번 재생한다.
+ * 동작은 주입된 ReactionMotion, 그림은 CharacterRenderer를 쓴다.
+ */
+@Composable
+private fun ReplayAvatar(type: team.datayou.engine.model.PassengerType, level: GaugeLevel, kind: team.datayou.engine.model.ReactionKind?, size: androidx.compose.ui.unit.Dp) {
+    val motion = team.datayou.app.ui.anim.LocalReactionMotion.current
+    val renderer = team.datayou.app.ui.anim.LocalCharacterRenderer.current
+    val progress = remember { Animatable(1f) }
+    val reduceMotion = rememberReduceMotion()
+    LaunchedEffect(kind) {
+        if (kind == null || reduceMotion) return@LaunchedEffect
+        val ms = motion.durationMs(kind)
+        if (ms <= 0) return@LaunchedEffect
+        kotlinx.coroutines.delay(400)
+        repeat(2) {
+            progress.snapTo(0f)
+            progress.animateTo(1f, tween(ms, easing = LinearEasing))
+            kotlinx.coroutines.delay(500)
+        }
+    }
+    val playing = kind != null && progress.value < 1f
+    val pose = if (playing) motion.pose(kind!!, progress.value) else team.datayou.app.ui.anim.MotionPose()
+    Box(Modifier.poseLayer(pose)) { renderer(type, level, if (playing) motion.mood(kind!!) else FaceMood.NORMAL, size, Modifier) }
 }
 
 /** 시스템 '애니메이션 줄이기'(애니메이터 배율 0)면 반응 동작을 생략한다. */
@@ -239,7 +251,7 @@ private fun BoxScope.DemoBar(s: Screen.Driving, vm: DataYouActions) {
 }
 
 @Composable
-private fun StopCardView(card: team.datayou.engine.StopCard, note: String?, vm: DataYouActions) {
+private fun StopCardView(card: team.datayou.engine.StopCard, note: String?, vm: DataYouActions, replay: team.datayou.engine.model.ReactionKind? = null) {
     val parts = card.message.split(" · ")
     Row(
         Modifier
@@ -251,7 +263,7 @@ private fun StopCardView(card: team.datayou.engine.StopCard, note: String?, vm: 
         horizontalArrangement = Arrangement.spacedBy(28.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Avatar(card.passenger.type, card.level, 150.dp)
+        ReplayAvatar(card.passenger.type, card.level, replay, 150.dp)
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(parts.first(), color = Palette.text, fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

@@ -164,7 +164,7 @@ ul.tight li{margin-bottom:6px}
       <div class="panel">
         <h3>세 가지 순간에 다르게 말합니다</h3>
         <ul class="tight">
-          <li><b>주행 중</b> · 동승자 얼굴 + 원인 배지 1개. 몸이 쏠리면 캐릭터가 그 방향으로 짧게 반응. 글자 없음, 단계가 오를 때만 효과음</li>
+          <li><b>주행 중</b> · 동승자 얼굴 + 원인 배지 1개. 몸이 쏠리면 캐릭터가 그 방향으로 쏠린 자세로 바뀜. 글자·움직임 없음, 단계가 오를 때만 효과음</li>
           <li><b>정차 시</b> · 원인과 개선 팁 카드, 음성 안내, "속 안 좋아요" 피드백</li>
           <li><b>하차 후</b> · 원인별 기여 비율과 다음 주행 팁 하나</li>
         </ul>
@@ -179,7 +179,7 @@ ul.tight li{margin-bottom:6px}
     <div class="fig-n"><b>7종</b><span>운전자에게 알려주는 원인</span></div>
     <div class="fig-n"><b>6가지</b><span>동승자 유형 프리셋</span></div>
     <div class="fig-n"><b>7개</b><span>차량·위치 데이터 채널</span></div>
-    <div class="fig-n"><b>54개</b><span>자동 테스트 (모두 통과)</span></div>
+    <div class="fig-n"><b>57개</b><span>자동 테스트 (모두 통과)</span></div>
   </div>
   <h2>이 문서의 구성</h2>
   <div class="grid3" id="toc"></div>
@@ -289,7 +289,7 @@ ul.tight li{margin-bottom:6px}
       <tr><td data-l="규칙">텍스트 없음</td><td data-l="내용">아이콘 뜻은 정차 카드에서 익힘</td><td data-l="왜">주행 중 읽기 금지</td></tr>
       <tr><td data-l="규칙">효과음</td><td data-l="내용">게이지 단계가 오를 때만 1회</td><td data-l="왜">반복 알림은 무시됨</td></tr>
       <tr><td data-l="규칙">대표 동승자</td><td data-l="내용">여럿이면 가장 힘든 한 명만</td><td data-l="왜">정보량 최소화</td></tr>
-      <tr><td data-l="규칙">예측 안내</td><td data-l="내용">'주의' 이상 + 회전 300m 전이면 아이콘이 커졌다 작아짐</td><td data-l="왜">미리 감속 유도</td></tr>
+      <tr><td data-l="규칙">예측 안내</td><td data-l="내용">'주의' 이상 + 회전 300m 전이면 칩 테두리를 파랗게 강조 (움직임 없음)</td><td data-l="왜">미리 감속 유도</td></tr>
       <tr><td data-l="규칙">정차 카드</td><td data-l="내용">멈추면 표시, 출발하면 닫힘, 90초 간격</td><td data-l="왜">같은 말 반복 방지</td></tr>
     </tbody>
   </table></div>
@@ -354,7 +354,7 @@ ul.tight li{margin-bottom:6px}
 
 <!-- 9 검증 -->
 <section class="page" id="verify" data-title="검증과 도구">
-  <h1>9개 시나리오에서 원인이 의도대로 갈리는지 54개 테스트로 확인합니다</h1>
+  <h1>9개 시나리오에서 원인이 의도대로 갈리는지 57개 테스트로 확인합니다</h1>
   <p class="lead">실제 도로 형상(커브 반경·회전각, 교차로 회전, 한 차로 이동)으로 만든 합성 데이터를 동승자 '아이'로 재생한 결과입니다. 수치보다 원인 구분이 핵심입니다.</p>
   <div class="scroll"><table class="stack">
     <thead><tr><th>시나리오</th><th class="num">최고 게이지</th><th>감지된 원인</th></tr></thead>
@@ -362,10 +362,10 @@ ul.tight li{margin-bottom:6px}
   </table></div>
   <div class="grid2" style="margin-top:28px">
     <div class="panel">
-      <h3>자동 테스트 54개</h3>
+      <h3>자동 테스트 57개</h3>
       <ul class="tight">
         <li><b>엔진 32개</b> · 시나리오별 원인 판별, 동승자 민감도 차이, 배지 30초 유지·효과음 규칙, 원안 모드, 조향각↔회전 변환, GPS 방위각 회귀 방지, 캐릭터 반응·휴식</li>
-        <li><b>앱 22개</b> · 화면 스냅샷 5, 시나리오 지도 스냅샷 6, 실시간 지도 렌더링 1, 캐릭터 반응 스냅샷 5, 애니메이션 주입 5</li>
+        <li><b>앱 25개</b> · 화면 스냅샷 5, 시나리오 지도 스냅샷 6, 실시간 지도 렌더링 1, 캐릭터 반응·주행 중 고정·정차 재생 7, 애니메이션 주입 6</li>
       </ul>
       <pre style="margin-top:12px"><button class="btn copy" data-copy="./gradlew :core-engine:test :app:testDebugUnitTest">복사</button>./gradlew :core-engine:test :app:testDebugUnitTest</pre>
     </div>

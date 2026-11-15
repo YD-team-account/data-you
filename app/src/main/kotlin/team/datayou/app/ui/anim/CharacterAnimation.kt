@@ -24,6 +24,10 @@ import java.io.File
  *  ② 코드:    ReactionMotion 구현을 LocalReactionMotion으로 제공
  *  ③ 그림:    CharacterRenderer(얼굴 그림 자체)를 LocalCharacterRenderer로 교체 (Lottie·이미지 등)
  *
+ *  주의분산 정책 (Android for Cars 품질 기준 SA-1 참고):
+ *   - 주행 중: 움직이지 않는다. 반응이 생기면 holdPose(정지 자세)로 바뀌어 잠시 유지됐다가 돌아온다.
+ *   - 정차 중: 정차 카드에서 그 반응 동작 전체(pose 0..1)를 재생해 "방금 이렇게 쏠렸어요"를 보여준다.
+ *
  *  형식과 예시: docs/design/character-animation.md
  */
 
@@ -54,15 +58,21 @@ interface ReactionMotion {
     fun pose(kind: ReactionKind, progress: Float): MotionPose
     /** 동작 중 표정 */
     fun mood(kind: ReactionKind): FaceMood = FaceMood.SURPRISED
+
+    /** 주행 중에 보여줄 정지 자세. 기본값: 동작 중 가장 크게 쏠린 순간 */
+    fun holdPose(kind: ReactionKind): MotionPose =
+        (0..50).map { pose(kind, it / 50f) }.maxBy { kotlin.math.abs(it.rotationX) + kotlin.math.abs(it.rotationZ) + kotlin.math.abs(it.dxDp) + kotlin.math.abs(it.dyDp) }
 }
 
 /** 키프레임 기반 구현. JSON으로 만들 수 있다. 구간 사이는 부드럽게(smoothstep) 보간한다. */
 class KeyframeReactionMotion(val clips: Map<ReactionKind, Clip>, val source: String = "code") : ReactionMotion {
 
     data class Keyframe(val t: Float, val pose: MotionPose)
-    data class Clip(val durationMs: Int, val mood: FaceMood, val keyframes: List<Keyframe>)
+    /** @param hold 주행 중 정지 자세. null이면 가장 크게 쏠린 키프레임 */
+    data class Clip(val durationMs: Int, val mood: FaceMood, val keyframes: List<Keyframe>, val hold: MotionPose? = null)
 
     override fun durationMs(kind: ReactionKind) = clips[kind]?.durationMs ?: 0
+    override fun holdPose(kind: ReactionKind): MotionPose = clips[kind]?.hold ?: super.holdPose(kind)
     override fun mood(kind: ReactionKind) = clips[kind]?.mood ?: FaceMood.SURPRISED
 
     override fun pose(kind: ReactionKind, progress: Float): MotionPose {
@@ -116,7 +126,13 @@ class KeyframeReactionMotion(val clips: Map<ReactionKind, Clip>, val source: Str
                     )
                 }.sortedBy { it.t }
                 require(kfs.isNotEmpty()) { "$name: keyframes가 비어 있음" }
-                clips[kind] = Clip(c.optInt("durationMs", 650).coerceIn(0, 3000), FaceMood.valueOf(c.optString("mood", "SURPRISED")), kfs)
+                val hold = c.optJSONObject("hold")?.let { h ->
+                    MotionPose(
+                        h.optDouble("rotationX", 0.0).toFloat(), h.optDouble("rotationZ", 0.0).toFloat(),
+                        h.optDouble("dx", 0.0).toFloat(), h.optDouble("dy", 0.0).toFloat(), h.optDouble("scale", 1.0).toFloat(),
+                    )
+                }
+                clips[kind] = Clip(c.optInt("durationMs", 650).coerceIn(0, 3000), FaceMood.valueOf(c.optString("mood", "SURPRISED")), kfs, hold)
             }
             return KeyframeReactionMotion(clips, source)
         }
@@ -150,6 +166,18 @@ typealias CharacterRenderer = @Composable (type: PassengerType, level: GaugeLeve
 
 val DefaultCharacterRenderer: CharacterRenderer = { type, level, mood, size, modifier ->
     Avatar(type, level, size, mood = mood, modifier = modifier)
+}
+
+/** 정차 카드에서 다시 보여줄 반응: 같은 원인의 최근 반응이 있으면 그 방향, 없으면 원인으로 정한다. */
+fun replayKindFor(cause: team.datayou.engine.model.Cause, last: team.datayou.engine.model.Reaction?): ReactionKind? {
+    if (last != null && last.cause == cause) return last.kind
+    return when (cause) {
+        team.datayou.engine.model.Cause.HARD_ACCEL -> ReactionKind.LEAN_BACK
+        team.datayou.engine.model.Cause.HARD_BRAKE, team.datayou.engine.model.Cause.REGEN_DECEL,
+        team.datayou.engine.model.Cause.BRAKE_PUMPING -> ReactionKind.LEAN_FORWARD
+        team.datayou.engine.model.Cause.SHARP_LATERAL, team.datayou.engine.model.Cause.CONTINUOUS_CURVES -> ReactionKind.TILT_RIGHT
+        team.datayou.engine.model.Cause.STOP_AND_GO -> null
+    }
 }
 
 val LocalReactionMotion = staticCompositionLocalOf<ReactionMotion> { KeyframeReactionMotion.Default }

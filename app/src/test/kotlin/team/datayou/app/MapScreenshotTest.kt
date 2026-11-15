@@ -176,16 +176,58 @@ class ReactionScreenshotTest {
     }
 
     @Test
-    fun leanForward() = shotAt("lean_forward", state(team.datayou.engine.model.ReactionKind.LEAN_FORWARD), 140)
+    fun leanForward() = shotAt("lean_forward", state(team.datayou.engine.model.ReactionKind.LEAN_FORWARD), 0)
 
     @Test
-    fun leanBack() = shotAt("lean_back", state(team.datayou.engine.model.ReactionKind.LEAN_BACK), 140)
+    fun leanBack() = shotAt("lean_back", state(team.datayou.engine.model.ReactionKind.LEAN_BACK), 0)
 
     @Test
-    fun tiltRight() = shotAt("tilt_right", state(team.datayou.engine.model.ReactionKind.TILT_RIGHT), 160)
+    fun tiltRight() = shotAt("tilt_right", state(team.datayou.engine.model.ReactionKind.TILT_RIGHT), 0)
 
     @Test
-    fun resting() = shotAt("resting", state(null, resting = true, level = team.datayou.engine.model.GaugeLevel.COMFORT), 600)
+    fun resting() = shotAt("resting", state(null, resting = true, level = team.datayou.engine.model.GaugeLevel.COMFORT), 0)
+
+    private fun frame(name: String): java.io.File {
+        val f = java.io.File("build/frames/$name.png")
+        compose.onRoot().captureRoboImage(f.path)
+        return f
+    }
+
+    private fun samePixels(a: java.io.File, b: java.io.File): Boolean {
+        val x = android.graphics.BitmapFactory.decodeFile(a.path)
+        val y = android.graphics.BitmapFactory.decodeFile(b.path)
+        return x.sameAs(y)
+    }
+
+    /** 주행 중 칩은 시간이 지나도 화면이 그대로여야 한다 (움직이는 요소 없음) */
+    @Test
+    fun drivingChipDoesNotMove() {
+        val d = state(team.datayou.engine.model.ReactionKind.LEAN_FORWARD).copy(preAlert = true)
+        compose.mainClock.autoAdvance = false
+        compose.setContent { DataYouTheme { DriveScreen(d, noop) } }
+        compose.mainClock.advanceTimeBy(50)
+        val a = frame("static_0")
+        for (t in listOf(150L, 300L, 600L, 1200L)) {
+            compose.mainClock.advanceTimeBy(t)
+            org.junit.Assert.assertTrue("주행 중 화면이 ${t}ms 뒤 바뀜", samePixels(a, frame("static_$t")))
+        }
+        compose.onRoot().captureRoboImage("screenshots/reaction_prealert_static.png")
+    }
+
+    /** 정차 카드에서만 반응 동작을 다시 보여준다 */
+    @Test
+    fun stopCardReplays() {
+        val card = team.datayou.engine.StopCard(PassengerProfile("c", PassengerType.CHILD), team.datayou.engine.model.GaugeLevel.CAUTION, team.datayou.engine.model.Cause.HARD_BRAKE, 2)
+        val d = state(null).copy(stopped = true, speedKmh = 0, stopCard = card, stopCardReplay = team.datayou.engine.model.ReactionKind.LEAN_FORWARD)
+        compose.mainClock.autoAdvance = false
+        compose.setContent { DataYouTheme { DriveScreen(d, noop) } }
+        compose.mainClock.advanceTimeBy(100)
+        val before = frame("replay_before")
+        compose.mainClock.advanceTimeBy(400 + 130)
+        val mid = frame("replay_mid")
+        org.junit.Assert.assertFalse("정차 카드 캐릭터가 움직여야 함", samePixels(before, mid))
+        compose.onRoot().captureRoboImage("screenshots/reaction_stopcard_replay.png")
+    }
 
     @Test
     fun injectedMotionAndRenderer() {
@@ -197,7 +239,7 @@ class ReactionScreenshotTest {
             androidx.compose.foundation.layout.Box(modifier.size(size).background(androidx.compose.ui.graphics.Color(0xFFFF9B80)))
         }
         val d = state(team.datayou.engine.model.ReactionKind.LEAN_FORWARD)
-        shotAt("injected", d, 500) {
+        shotAt("injected", d, 0) {
             androidx.compose.runtime.CompositionLocalProvider(
                 team.datayou.app.ui.anim.LocalReactionMotion provides motion,
                 team.datayou.app.ui.anim.LocalCharacterRenderer provides renderer,

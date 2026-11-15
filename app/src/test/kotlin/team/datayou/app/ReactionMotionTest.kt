@@ -42,6 +42,15 @@ class ReactionMotionTest {
         assertTrue(m.pose(ReactionKind.TILT_LEFT, 0.22f).rotationZ < -10f)
     }
 
+    @Test
+    fun `주행 중 정지 자세는 가장 크게 쏠린 순간이고 JSON의 hold로 바꿀 수 있다`() {
+        val d = KeyframeReactionMotion.Default.holdPose(ReactionKind.LEAN_FORWARD)
+        assertEquals(30f, d.rotationX, 0.5f)
+        val m = KeyframeReactionMotion.fromJson("""{"reactions":{"LEAN_FORWARD":{"keyframes":[{"t":0},{"t":1}],"hold":{"rotationX":12,"dy":3}}}}""")
+        assertEquals(12f, m.holdPose(ReactionKind.LEAN_FORWARD).rotationX, 1e-3f)
+        assertEquals(3f, m.holdPose(ReactionKind.LEAN_FORWARD).dyDp, 1e-3f)
+    }
+
     @Test(expected = Exception::class)
     fun `알 수 없는 반응 이름은 거부한다`() {
         KeyframeReactionMotion.fromJson("""{"reactions":{"JUMP":{"keyframes":[{"t":0}]}}}""")

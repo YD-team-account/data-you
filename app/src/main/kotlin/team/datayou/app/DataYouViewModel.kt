@@ -70,6 +70,8 @@ sealed interface Screen {
         val reactionShowing: Boolean = false,
         /** 부드러운 주행 중 → 편안히 쉬는 표정 */
         val resting: Boolean = false,
+        /** 정차 카드에서 다시 보여줄 반응 동작 (정차 중에만 움직임) */
+        val stopCardReplay: team.datayou.engine.model.ReactionKind? = null,
     ) : Screen
 
     data class Report(val report: TripReport, val sourceLabel: String) : Screen
@@ -217,6 +219,7 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
                 tbt = tbt,
                 preAlert = pre,
                 stopCard = card,
+                stopCardReplay = card?.let { team.datayou.app.ui.anim.replayKindFor(it.cause, lastReaction) },
                 feedbackNote = note,
                 elapsedSec = u.timestampMs / 1000.0,
                 liveProblem = (source as? PleosVehicleDataSource)?.problem,
@@ -226,7 +229,7 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
                 },
                 tMs = u.timestampMs,
                 reaction = lastReaction,
-                // 반응 동작(약 0.7초)이 끝나고 잠깐 더 보이도록 실제 시간 2.5초
+                // 주행 중에는 반응 정지 자세를 실제 시간 2.5초 보여주고 원래대로 돌아온다
                 reactionShowing = lastReaction != null && System.currentTimeMillis() - lastReactionWallMs < 2500,
                 resting = u.resting,
                 geo = geo ?: s.geo,
