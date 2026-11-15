@@ -9,6 +9,17 @@ set LOG=%CD%\dist\sway_demo_log.txt
 set ADB=%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe
 if not exist "%ADB%" set ADB=adb
 
+rem 에뮬레이터가 켜져 있는지 먼저 확인
+"%ADB%" get-state >nul 2>&1
+if errorlevel 1 (
+  echo.
+  echo [중단] 연결된 에뮬레이터가 없습니다.
+  echo Android Studio Device Manager에서 에뮬레이터를 켜고 홈 화면이 뜬 뒤 다시 실행하세요.
+  echo.
+  pause
+  exit /b 1
+)
+
 set APK=dist\datayou-m3-debug.apk
 if exist "%APK%" (
   echo 최신 APK 설치 중: %APK%
@@ -21,10 +32,9 @@ rem 실시간 지도 시작 위치: 서울시청 앞 세종대로 (북쪽 방향
 
 echo ===================================================================
 echo  0. 권한 창이 뜨면 모두 "허용"
-echo  1. 첫 화면에서 "실시간 차량 데이터" 선택 후 "주행 시작"
-echo  2. 왼쪽 동승자 팝업에서 "아이" 하나만 체크 (지난번 선택이 남아 있으면 해제)
-echo     팝업은 차가 출발하면 저절로 닫히니 "확인"은 눌러도 되고 안 눌러도 됩니다
-echo  3. 이 창에서 아무 키나 누르세요 (약 2분 진행)
+echo  1. 첫 화면: 실시간 차량 데이터 선택 후 주행 시작
+echo  2. 왼쪽 팝업: 아이 하나만 체크 - 출발하면 저절로 닫힘
+echo  3. 이 창에서 아무 키나 누르세요 - 약 2분 진행
 echo ===================================================================
 pause
 
