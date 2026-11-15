@@ -85,7 +85,7 @@ fun DriveScreen(s: Screen.Driving, vm: DataYouActions) {
                     }
                 }
             }
-        } else {
+        } else if (!s.passengerPanel) {
             Row(
                 Modifier.align(Alignment.TopStart).padding(20.dp).background(Palette.chip, RoundedCornerShape(12.dp)).padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -96,8 +96,8 @@ fun DriveScreen(s: Screen.Driving, vm: DataYouActions) {
             }
         }
 
-        // 속도
-        Row(
+        // 속도 (동승자 팝업이 떠 있는 출발 전에는 숨김)
+        if (!s.passengerPanel) Row(
             Modifier.align(Alignment.BottomStart).padding(20.dp).background(Palette.chip, RoundedCornerShape(14.dp)).padding(horizontal = 18.dp, vertical = 10.dp),
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -123,6 +123,9 @@ fun DriveScreen(s: Screen.Driving, vm: DataYouActions) {
                 resting = s.resting,
             )
         }
+
+        // 출발 전 동승자 팝업 (운전석 쪽 왼쪽). 움직이면 효과 없이 바로 사라진다.
+        if (s.passengerPanel) PassengerPanel(s.passengers, vm, Modifier.align(Alignment.TopStart).padding(20.dp))
 
         // 데모 조작 (재생 데이터일 때만)
         DemoBar(s, vm)

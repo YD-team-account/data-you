@@ -179,7 +179,7 @@ ul.tight li{margin-bottom:6px}
     <div class="fig-n"><b>7종</b><span>운전자에게 알려주는 원인</span></div>
     <div class="fig-n"><b>6가지</b><span>동승자 유형 프리셋</span></div>
     <div class="fig-n"><b>7개</b><span>차량·위치 데이터 채널</span></div>
-    <div class="fig-n"><b>57개</b><span>자동 테스트 (모두 통과)</span></div>
+    <div class="fig-n"><b>60개</b><span>자동 테스트 (모두 통과)</span></div>
   </div>
   <h2>이 문서의 구성</h2>
   <div class="grid3" id="toc"></div>
@@ -354,7 +354,7 @@ ul.tight li{margin-bottom:6px}
 
 <!-- 9 검증 -->
 <section class="page" id="verify" data-title="검증과 도구">
-  <h1>9개 시나리오에서 원인이 의도대로 갈리는지 57개 테스트로 확인합니다</h1>
+  <h1>9개 시나리오에서 원인이 의도대로 갈리는지 60개 테스트로 확인합니다</h1>
   <p class="lead">실제 도로 형상(커브 반경·회전각, 교차로 회전, 한 차로 이동)으로 만든 합성 데이터를 동승자 '아이'로 재생한 결과입니다. 수치보다 원인 구분이 핵심입니다.</p>
   <div class="scroll"><table class="stack">
     <thead><tr><th>시나리오</th><th class="num">최고 게이지</th><th>감지된 원인</th></tr></thead>
@@ -362,10 +362,10 @@ ul.tight li{margin-bottom:6px}
   </table></div>
   <div class="grid2" style="margin-top:28px">
     <div class="panel">
-      <h3>자동 테스트 57개</h3>
+      <h3>자동 테스트 60개</h3>
       <ul class="tight">
         <li><b>엔진 32개</b> · 시나리오별 원인 판별, 동승자 민감도 차이, 배지 30초 유지·효과음 규칙, 원안 모드, 조향각↔회전 변환, GPS 방위각 회귀 방지, 캐릭터 반응·휴식</li>
-        <li><b>앱 25개</b> · 화면 스냅샷 5, 시나리오 지도 스냅샷 6, 실시간 지도 렌더링 1, 캐릭터 반응·주행 중 고정·정차 재생 7, 애니메이션 주입 6</li>
+        <li><b>앱 28개</b> · 화면 스냅샷 6, 시나리오 지도 스냅샷 6, 실시간 지도 렌더링 1, 캐릭터 반응·주행 중 고정·정차 재생 7, 애니메이션 주입 6, 동승자 기억 2</li>
       </ul>
       <pre style="margin-top:12px"><button class="btn copy" data-copy="./gradlew :core-engine:test :app:testDebugUnitTest">복사</button>./gradlew :core-engine:test :app:testDebugUnitTest</pre>
     </div>
@@ -597,7 +597,8 @@ drawCauses('all');
 
 /* ---------- 6. screens ---------- */
 const SHOTS = [
-  ['1_start.png', '출발', '동승자 유형과 데이터(시나리오 또는 실시간)를 고릅니다.', ['동승자 여러 명 선택 가능', '유형마다 민감도·이벤트 배율이 다름', '실시간을 고르면 차량·위치 권한을 요청']],
+  ['1_start.png', '출발', '데이터(시나리오 또는 실시간)를 고르고 주행을 시작합니다.', ['동승자는 다음 화면 팝업에서 (선택)', '실시간을 고르면 차량·위치 권한을 요청']],
+  ['1b_passenger_panel.png', '동승자 팝업', '내비 화면 왼쪽(운전석 쪽)에 좁게 뜹니다. 고르지 않아도 출발할 수 있습니다.', ['여러 명 선택 가능 · 유형마다 민감도가 다름', '고른 값은 다음 주행에도 그대로', '5km/h 이상 움직이면 효과 없이 자동으로 닫힘']],
   ['2_driving_caution.png', '주행 중 · 주의', '게이지가 40을 넘으면 오른쪽 아래에 동승자 얼굴과 원인 배지가 나타납니다.', ['글자 없이 얼굴 표정 + 원인 아이콘', '얼굴 테두리 색이 단계(주의 노랑)', '단계가 오를 때 효과음 1회']],
   ['3_driving_discomfort.png', '주행 중 · 힘듦', '강변 연속 커브에서 게이지가 70을 넘은 순간입니다. 회전 안내 칸이 강조되면 예측 안내 상태입니다.', ['얼굴 테두리 주황 = 힘듦', '배지 = 좌우 흔들림(연속 커브)', '지도는 실제 데이터로 복원한 굽이길']],
   ['4_stop_card.png', '정차 카드', '차가 멈추면 원인과 개선 팁을 보여주고 음성으로 읽어 줍니다.', ['출발하면 자동으로 닫힘', '"괜찮아요 / 속 안 좋아요"로 민감도 보정', '같은 카드는 90초 간격']],

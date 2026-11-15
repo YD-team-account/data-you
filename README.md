@@ -114,9 +114,12 @@ Vehicle·NaviHelper SDK는 Pleos 공개 Maven 저장소에서 받으며 인증 �
 
 ## 화면
 
-| 출발 · 동승자 선택 | 주행 중 · 주의 |
+주행을 시작하면 내비 화면 왼쪽(운전석 쪽)에 동승자 팝업이 뜹니다. 고르지 않아도 바로 출발할 수 있고(일반 동승자 기준), 고른 값은 저장되어 다음 주행의 팝업이 같은 값으로 열립니다. 차가 5km/h 이상으로 움직이면 팝업은 효과 없이 바로 닫힙니다.
+
+
+| 출발 전 · 동승자 팝업 (선택) | 주행 중 · 주의 |
 |---|---|
-| ![출발](docs/screenshots/1_start.png) | ![주행 중](docs/screenshots/2_driving_caution.png) |
+| ![동승자 팝업](docs/screenshots/1b_passenger_panel.png) | ![주행 중](docs/screenshots/2_driving_caution.png) |
 | **정차 시 · 코칭 카드** | **하차 · 주행 리포트** |
 | ![정차 카드](docs/screenshots/4_stop_card.png) | ![리포트](docs/screenshots/5_report.png) |
 
@@ -148,7 +151,7 @@ Vehicle·NaviHelper SDK는 Pleos 공개 Maven 저장소에서 받으며 인증 �
 ## 빠른 시작
 
 ```bash
-./gradlew :core-engine:test :app:testDebugUnitTest      # 자동 테스트 57개
+./gradlew :core-engine:test :app:testDebugUnitTest      # 자동 테스트 60개
 ./gradlew :core-engine:run --args="summary CHILD"        # 9개 시나리오 결과 표
 ./gradlew :app:assembleDebug                             # APK 빌드
 ```
@@ -159,7 +162,7 @@ Vehicle·NaviHelper SDK는 Pleos 공개 Maven 저장소에서 받으며 인증 �
 
 ## 검증
 
-**자동 테스트 57개** — 엔진 32개(시나리오별 원인 판별, 동승자 차이, 배지·효과음 규칙, 예측 안내, 피드백 보정, 조향각 변환, GPS 방위 회귀, 캐릭터 반응·휴식), 앱 25개(화면 스냅샷 5, 시나리오 지도 6, 실시간 지도 1, 캐릭터 반응·주행 중 고정·정차 재생 7, 애니메이션 주입 6).
+**자동 테스트 60개** — 엔진 32개(시나리오별 원인 판별, 동승자 차이, 배지·효과음 규칙, 예측 안내, 피드백 보정, 조향각 변환, GPS 방위 회귀, 캐릭터 반응·휴식), 앱 28개(화면 스냅샷 6, 시나리오 지도 6, 실시간 지도 1, 캐릭터 반응·주행 중 고정·정차 재생 7, 애니메이션 주입 6, 동승자 기억 2).
 
 합성 시나리오 9종을 동승자 '아이'로 재생한 결과입니다. 시나리오는 실제 도로 형상(커브 반경 50~80m·회전각 45~80°, 교차로 90° 회전, 2.3초에 한 차로 이동)으로 만들었습니다.
 

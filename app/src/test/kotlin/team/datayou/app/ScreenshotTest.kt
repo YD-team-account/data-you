@@ -79,6 +79,17 @@ class ScreenshotTest {
         compose.onRoot().captureRoboImage("screenshots/1_start.png")
     }
 
+    /** 출발 전 동승자 팝업: 왼쪽(운전석 쪽)에 좁게 떠서 내비 화면을 가리지 않는다 */
+    @Test
+    fun passengerPanel() {
+        val s = Screen.Driving(
+            sourceLabel = "가족 나들이", stopped = true, speedFactor = 5, route = familyRoute, tMs = 0,
+            passengerPanel = true, passengers = setOf(PassengerType.CHILD, PassengerType.DOG),
+        )
+        compose.setContent { DataYouTheme { DriveScreen(s, Noop) } }
+        compose.onRoot().captureRoboImage("screenshots/1b_passenger_panel.png")
+    }
+
     @Test
     fun drivingCaution() {
         val (updates, _) = runTrip()

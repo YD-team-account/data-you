@@ -55,7 +55,7 @@ timestamp_ms,speed_mps,yaw_rate_rad_s,heading_deg,brake,turn_signal
    - Android Automotive 시스템 이미지(API 34·35)
 3. `app` ▾ ▸ Edit Configurations ▸ **Install for all users**를 체크하고 실행합니다.
 4. 처음 실행하면 권한 창이 뜹니다. 차량 속도·핸들·위치 권한을 모두 **허용**합니다.
-5. 동승자를 고르고 시나리오(예: 가족 나들이)를 선택해 출발합니다. 오른쪽 위 데모 막대에서 1·5·15배속을 바꿀 수 있습니다.
+5. 시나리오(예: 가족 나들이)를 고르고 "주행 시작"을 누릅니다. 왼쪽 동승자 팝업에서 동승자를 고르고(건너뛰어도 됨) "확인"을 누르면 재생이 시작됩니다. 실시간 모드에서는 차가 움직이면 팝업이 저절로 닫힙니다. 오른쪽 위 데모 막대에서 1·5·15배속을 바꿀 수 있습니다.
 
 > ⚠️ `Activity class {team.datayou.app/...MainActivity} does not exist`가 뜨면 Automotive 멀티유저 설치 문제입니다. 앱 코드 문제가 아닙니다. → [설치 문제 해결](troubleshooting-aaos-install.md) 또는 `tools\emulator\fix_install.bat`
 
