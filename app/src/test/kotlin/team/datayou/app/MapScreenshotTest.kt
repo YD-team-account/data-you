@@ -1,5 +1,7 @@
 package team.datayou.app
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -126,5 +128,80 @@ class LiveMapSmokeTest {
             override fun backToStart() {}
         }) } }
         compose.onRoot().captureRoboImage("screenshots/map_live_offline.png")
+    }
+}
+
+/** 캐릭터 반응: 반응 순간의 자세와 휴식 표정, 그리고 바깥에서 주입한 동작·그림이 쓰이는지. */
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], qualifiers = "w1280dp-h560dp-land-mdpi")
+class ReactionScreenshotTest {
+    @get:Rule
+    val compose = createComposeRule()
+
+    private val noop = object : DataYouActions {
+        override fun togglePassenger(type: PassengerType) {}
+        override fun selectScenario(asset: String) {}
+        override fun setLive(live: Boolean) {}
+        override fun startTrip() {}
+        override fun setSpeedFactor(f: Int) {}
+        override fun feedback(uncomfortable: Boolean) {}
+        override fun finishTrip() {}
+        override fun backToStart() {}
+    }
+
+    private fun state(kind: team.datayou.engine.model.ReactionKind?, resting: Boolean = false, level: team.datayou.engine.model.GaugeLevel = team.datayou.engine.model.GaugeLevel.CAUTION): Screen.Driving {
+        val samples = Scenarios.cityAggressive()
+        val route = RouteGeometry.from(samples)
+        val s = samples[300]
+        return Screen.Driving(
+            sourceLabel = "반응 확인",
+            focus = team.datayou.engine.PassengerState(PassengerProfile("c", PassengerType.CHILD), if (level == team.datayou.engine.model.GaugeLevel.COMFORT) 10.0 else 52.0, level),
+            badge = team.datayou.engine.model.Cause.HARD_BRAKE,
+            speedKmh = 38,
+            route = route,
+            tMs = s.timestampMs,
+            reaction = kind?.let { team.datayou.engine.model.Reaction(it, team.datayou.engine.model.Cause.HARD_BRAKE, 1000L) },
+            reactionShowing = kind != null,
+            resting = resting,
+        )
+    }
+
+    /** 반응 시작 후 [ms] 시점의 장면을 찍는다 */
+    private fun shotAt(name: String, d: Screen.Driving, ms: Long, content: @androidx.compose.runtime.Composable () -> Unit = { DataYouTheme { DriveScreen(d, noop) } }) {
+        compose.mainClock.autoAdvance = false
+        compose.setContent(content)
+        compose.mainClock.advanceTimeBy(ms)
+        compose.onRoot().captureRoboImage("screenshots/reaction_$name.png")
+    }
+
+    @Test
+    fun leanForward() = shotAt("lean_forward", state(team.datayou.engine.model.ReactionKind.LEAN_FORWARD), 140)
+
+    @Test
+    fun leanBack() = shotAt("lean_back", state(team.datayou.engine.model.ReactionKind.LEAN_BACK), 140)
+
+    @Test
+    fun tiltRight() = shotAt("tilt_right", state(team.datayou.engine.model.ReactionKind.TILT_RIGHT), 160)
+
+    @Test
+    fun resting() = shotAt("resting", state(null, resting = true, level = team.datayou.engine.model.GaugeLevel.COMFORT), 600)
+
+    @Test
+    fun injectedMotionAndRenderer() {
+        // 바깥에서 주입: 과장된 동작 + 다른 그림(사각형 캐릭터)
+        val motion = team.datayou.app.ui.anim.KeyframeReactionMotion.fromJson(
+            """{"reactions":{"LEAN_FORWARD":{"durationMs":1000,"keyframes":[{"t":0},{"t":0.5,"rotationZ":40,"dy":20,"scale":1.3},{"t":1}]}}}""",
+        )
+        val renderer: team.datayou.app.ui.anim.CharacterRenderer = { _, _, _, size, modifier ->
+            androidx.compose.foundation.layout.Box(modifier.size(size).background(androidx.compose.ui.graphics.Color(0xFFFF9B80)))
+        }
+        val d = state(team.datayou.engine.model.ReactionKind.LEAN_FORWARD)
+        shotAt("injected", d, 500) {
+            androidx.compose.runtime.CompositionLocalProvider(
+                team.datayou.app.ui.anim.LocalReactionMotion provides motion,
+                team.datayou.app.ui.anim.LocalCharacterRenderer provides renderer,
+            ) { DataYouTheme { DriveScreen(d, noop) } }
+        }
     }
 }

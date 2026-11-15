@@ -7,6 +7,8 @@ import team.datayou.engine.model.CauseEvent
 import team.datayou.engine.model.CauseKind
 import team.datayou.engine.model.GaugeLevel
 import team.datayou.engine.model.PassengerProfile
+import team.datayou.engine.model.Reaction
+import team.datayou.engine.model.ReactionKind
 import team.datayou.engine.model.VehicleSample
 import team.datayou.engine.report.TripRecorder
 import team.datayou.engine.report.TripReport
@@ -43,6 +45,9 @@ class DataYouEngine(
     private var stopped = false
     private var lastLongMomentCause: Pair<Cause, Long>? = null
     private var lastLatMomentMs: Long? = null
+    private var lastReactionMs: Long? = null
+    private var firstFrameMs: Long? = null
+    private var lastActionableEventMs: Long? = null
 
     /** 대표 동승자 = 게이지가 가장 높은 동승자. 주행 중 아이콘에 이 한 명만 표시한다. */
     private fun focusTracker(): PassengerTracker = trackers.values.maxBy { it.gauge }
@@ -83,6 +88,9 @@ class DataYouEngine(
 
         recorder.onFrame(f, newEvents)
         updateStopped(f.speedMps, now)
+        val reaction = pickReaction(newEvents, f.latAccel, now)
+        if (firstFrameMs == null) firstFrameMs = now
+        if (newEvents.any { it.cause.actionable }) lastActionableEventMs = now
         val focus = focusTracker()
         updateBadge(focus, now)
 
@@ -97,6 +105,12 @@ class DataYouEngine(
         if (justStopped) recorder.markStop()
         justStopped = false
 
+        // 고칠 수 있는 이벤트 없이 부드럽게 달리는 중이면 캐릭터가 편안히 쉰다 (칭찬 피드백)
+        val calmSinceMs = lastActionableEventMs ?: firstFrameMs ?: now
+        val resting = focus.level == GaugeLevel.COMFORT &&
+            !stopped && f.speedMps >= config.restingMinSpeedMps &&
+            (now - calmSinceMs) / 1000.0 >= config.restingAfterSec
+
         return EngineUpdate(
             timestampMs = now,
             speedMps = f.speedMps,
@@ -108,7 +122,27 @@ class DataYouEngine(
             playAlertSound = levelUp,
             stopCard = stopCard,
             legacyAlert = legacy,
+            reaction = reaction,
+            resting = resting,
         )
+    }
+
+    /** 이번 프레임의 새 이벤트 중 하나를 캐릭터 반응으로 고른다 (최소 간격 유지). */
+    private fun pickReaction(events: List<CauseEvent>, latAccel: Double, now: Long): Reaction? {
+        val gapOk = lastReactionMs?.let { (now - it) / 1000.0 >= config.reactionMinGapSec } ?: true
+        if (!gapOk || events.isEmpty()) return null
+        // 순간 이벤트를 반복 패턴보다 먼저 보여준다
+        val e = events.sortedBy { if (it.cause.kind == CauseKind.MOMENT) 0 else 1 }.firstOrNull { reactionKind(it.cause, latAccel) != null } ?: return null
+        lastReactionMs = now
+        return Reaction(reactionKind(e.cause, latAccel)!!, e.cause, now)
+    }
+
+    private fun reactionKind(cause: Cause, latAccel: Double): ReactionKind? = when (cause) {
+        Cause.HARD_ACCEL -> ReactionKind.LEAN_BACK
+        Cause.HARD_BRAKE, Cause.REGEN_DECEL, Cause.BRAKE_PUMPING -> ReactionKind.LEAN_FORWARD
+        // 좌우 가속 +(왼쪽으로 도는 중) → 몸은 오른쪽으로 쏠림
+        Cause.SHARP_LATERAL, Cause.CONTINUOUS_CURVES -> if (latAccel >= 0) ReactionKind.TILT_RIGHT else ReactionKind.TILT_LEFT
+        Cause.STOP_AND_GO -> null
     }
 
     /** 동승자 피드백 ("속 안 좋아" / "괜찮아"). 향후 Gleo STT와 연결. */
@@ -238,4 +272,8 @@ data class EngineUpdate(
     val stopCard: StopCard?,
     /** 원안 모드(N분 내 M회)를 켠 경우의 알림 조건. */
     val legacyAlert: Boolean,
+    /** 이번 샘플에서 시작하는 캐릭터 반응 (없으면 null). 화면은 짧게 한 번만 움직인다. */
+    val reaction: Reaction? = null,
+    /** 고칠 수 있는 이벤트 없이 부드럽게 달리는 중 → 캐릭터가 편안히 쉬는 표정 */
+    val resting: Boolean = false,
 )

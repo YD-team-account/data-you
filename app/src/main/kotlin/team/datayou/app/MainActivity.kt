@@ -40,7 +40,11 @@ class MainActivity : ComponentActivity() {
         val missing = runtimePermissions.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         Log.i("DataYouPerm", "missing permissions: $missing")
         if (missing.isNotEmpty()) permissionLauncher.launch(missing.toTypedArray())
+        // 캐릭터 반응 동작: 기기 파일 > assets > 내장 기본값 순으로 주입 (docs/design/character-animation.md)
+        val reactionMotion = team.datayou.app.ui.anim.KeyframeReactionMotion.load(this)
+        Log.i("DataYouAnim", "reaction motion source=${reactionMotion.source}")
         setContent {
+            androidx.compose.runtime.CompositionLocalProvider(team.datayou.app.ui.anim.LocalReactionMotion provides reactionMotion) {
             DataYouTheme {
                 val vm: DataYouViewModel = viewModel()
                 val screen by vm.screen.collectAsStateWithLifecycle()
@@ -49,6 +53,7 @@ class MainActivity : ComponentActivity() {
                     is Screen.Driving -> DriveScreen(s, vm)
                     is Screen.Report -> ReportScreen(s, vm)
                 }
+            }
             }
         }
     }

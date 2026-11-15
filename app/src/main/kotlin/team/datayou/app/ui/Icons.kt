@@ -48,39 +48,56 @@ private fun DrawScope.ring(cx: Float, cy: Float, r: Float, color: Color, w: Floa
 
 private fun DrawScope.dot(cx: Float, cy: Float, r: Float, color: Color) = drawCircle(color, r, Offset(cx, cy))
 
+/** 반응 중 표정: 평소 / 놀람(몸이 쏠리는 순간) / 휴식(부드러운 주행 칭찬) */
+enum class FaceMood { NORMAL, SURPRISED, RESTING }
+
 /** 동승자 얼굴. 단계에 따라 표정이 바뀐다 (색약 운전자도 구분 가능하도록). */
 @Composable
-fun PassengerFace(type: PassengerType, level: GaugeLevel, modifier: Modifier = Modifier, color: Color = Palette.text) {
-    Canvas(modifier.semantics { contentDescription = "${type.label} ${level.label()}" }) {
+fun PassengerFace(type: PassengerType, level: GaugeLevel, modifier: Modifier = Modifier, color: Color = Palette.text, mood: FaceMood = FaceMood.NORMAL) {
+    Canvas(modifier.semantics { contentDescription = "${type.label} ${level.label()}" + if (mood == FaceMood.RESTING) " 편안히 쉬는 중" else "" }) {
         inViewBox(40f) {
-            val mouth = when (level) {
-                GaugeLevel.DISCOMFORT -> "M14 29c2-2 4 2 6 0s4 2 6 0"
-                GaugeLevel.CAUTION -> "M15 28h10"
-                GaugeLevel.COMFORT -> "M15 27c3 3 7 3 10 0"
+            val mouth = when {
+                mood == FaceMood.RESTING -> "M15 27c3 3 7 3 10 0"
+                level == GaugeLevel.DISCOMFORT -> "M14 29c2-2 4 2 6 0s4 2 6 0"
+                level == GaugeLevel.CAUTION -> "M15 28h10"
+                else -> "M15 27c3 3 7 3 10 0"
             }
-            fun eyes() {
-                if (level == GaugeLevel.DISCOMFORT) line("M13 20.5l3 1.2M27 20.5l-3 1.2", color)
-                else { dot(15f, 21f, 1.4f, color); dot(25f, 21f, 1.4f, color) }
+            fun mouthOrO() { if (mood == FaceMood.SURPRISED) ring(20f, 28f, 2.4f, color) else line(mouth, color) }
+            fun eyes(lx: Float = 15f, rx: Float = 25f, y: Float = 21f) {
+                when {
+                    mood == FaceMood.RESTING -> line("M${lx - 2} ${y}q2 2 4 0M${rx - 2} ${y}q2 2 4 0", color)
+                    mood == FaceMood.SURPRISED -> { ring(lx, y, 1.8f, color); ring(rx, y, 1.8f, color) }
+                    level == GaugeLevel.DISCOMFORT -> line("M${lx - 2} ${y - 0.5f}l3 1.2M${rx + 2} ${y - 0.5f}l-3 1.2", color)
+                    else -> { dot(lx, y, 1.4f, color); dot(rx, y, 1.4f, color) }
+                }
             }
             when (type) {
-                PassengerType.CHILD -> { ring(20f, 22f, 13f, color); line("M17 9c0-3 4-4 5-1", color); eyes(); line(mouth, color) }
+                PassengerType.CHILD -> { ring(20f, 22f, 13f, color); line("M17 9c0-3 4-4 5-1", color); eyes(); mouthOrO() }
                 PassengerType.PREGNANT -> { ring(18f, 9f, 5f, color); line("M18 14v6c0 0 9 1 9 8s-6 7-9 7", color); line("M18 20c-3 0-5 3-5 7v8", color) }
                 PassengerType.SENIOR -> {
                     ring(20f, 21f, 13f, color); ring(15f, 20f, 3.2f, color); ring(25f, 20f, 3.2f, color)
-                    line("M18.2 20h3.6", color); line("M12 11c4-3 12-3 16 0", color); line(mouth, color)
+                    line("M18.2 20h3.6", color); line("M12 11c4-3 12-3 16 0", color)
+                    if (mood == FaceMood.RESTING) line("M13.5 20.5q1.5 1.5 3 0M23.5 20.5q1.5 1.5 3 0", color)
+                    mouthOrO()
                 }
                 PassengerType.DOG -> {
                     line("M11 12c-5 0-7 9-4 13l4-3", color); line("M29 12c5 0 7 9 4 13l-4-3", color)
                     line("M11 12c3-3 15-3 18 0v12c0 6-4 9-9 9s-9-3-9-9z", color)
-                    if (level == GaugeLevel.DISCOMFORT) line("M14 19l3 1.2M26 19l-3 1.2", color)
-                    else { dot(16f, 20f, 1.4f, color); dot(24f, 20f, 1.4f, color) }
+                    eyes(16f, 24f, 20f)
                     drawPath(p("M18 26h4l-2 2z"), color)
                 }
                 PassengerType.SENSITIVE_ADULT, PassengerType.ADULT -> {
-                    ring(20f, 21f, 13f, color); line("M13 19h4M23 19h4", color)
-                    line(if (level == GaugeLevel.COMFORT) "M15 28h10" else mouth, color)
+                    ring(20f, 21f, 13f, color)
+                    when (mood) {
+                        FaceMood.RESTING -> line("M13 19q2 2 4 0M23 19q2 2 4 0", color)
+                        FaceMood.SURPRISED -> { ring(15f, 19f, 1.8f, color); ring(25f, 19f, 1.8f, color) }
+                        FaceMood.NORMAL -> line("M13 19h4M23 19h4", color)
+                    }
+                    if (mood == FaceMood.NORMAL) line(if (level == GaugeLevel.COMFORT) "M15 28h10" else mouth, color) else mouthOrO()
                 }
             }
+            // 휴식: 머리 위 작은 z
+            if (mood == FaceMood.RESTING) line("M31 4h4l-4 4h4", color)
         }
     }
 }
@@ -114,9 +131,9 @@ fun CauseBadge(cause: Cause, size: Dp) {
 
 /** 단계 색 테두리를 두른 동승자 아바타 */
 @Composable
-fun Avatar(type: PassengerType, level: GaugeLevel, size: Dp, ring: Color = level.color()) {
+fun Avatar(type: PassengerType, level: GaugeLevel, size: Dp, ring: Color = level.color(), mood: FaceMood = FaceMood.NORMAL, modifier: Modifier = Modifier) {
     Box(
-        Modifier.size(size).background(Palette.surface2, CircleShape).border(size * 0.08f, ring, CircleShape),
+        modifier.size(size).background(Palette.surface2, CircleShape).border(size * 0.08f, ring, CircleShape),
         contentAlignment = Alignment.Center,
-    ) { PassengerFace(type, level, Modifier.padding(size * 0.18f).fillMaxSize()) }
+    ) { PassengerFace(type, level, Modifier.padding(size * 0.18f).fillMaxSize(), mood = mood) }
 }

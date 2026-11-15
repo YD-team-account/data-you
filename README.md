@@ -8,6 +8,7 @@
 |---|---|
 | 📘 [아키텍처·기능 개요](docs/overview/index.html) | 주제별 10페이지 인터랙티브 문서 (게이지 시뮬레이터, 경로 뷰어 포함) |
 | 📐 [소프트웨어 설계 문서 (SDD)](docs/design/SDD.md) | 요구사항, 구조, 알고리즘, 대체 경로, 테스트 추적성 |
+| 🎭 [캐릭터 애니메이션 주입](docs/design/character-animation.md) | 반응 동작을 JSON·코드로 교체하는 방법 |
 | ▶️ [실행·시연 가이드](docs/guides/run-and-demo.md) | 브라우저 → 엔진 → 에뮬레이터 → 실시간 시연 |
 | 🎞️ [인터랙티브 프로토타입](docs/prototype/index.html) | 엔진이 계산한 주행을 차량 화면으로 재생 |
 | 📦 APK | 저장소 Releases의 `datayou-m3-debug.apk` |
@@ -20,7 +21,7 @@
 
 | 순간 | 보여주는 것 | 원칙 |
 |---|---|---|
-| 주행 중 | 가장 힘든 동승자의 얼굴 + 원인 배지 1개 | 글자 없음, 배지 30초 유지, 단계가 오를 때만 효과음 |
+| 주행 중 | 가장 힘든 동승자의 얼굴 + 원인 배지 1개. 몸이 쏠리면 캐릭터가 그 방향으로 짧게 반응, 부드럽게 달리면 편안히 쉬는 표정 | 글자 없음, 반응은 0.7초 한 번, 배지 30초 유지, 단계가 오를 때만 효과음 |
 | 정차 시 | 원인과 개선 팁 카드, 음성 안내, "괜찮아요 / 속 안 좋아요" | 운전 중 읽게 하지 않음 |
 | 하차 후 | 원인별 기여 비율, 10km당 이벤트, 다음 주행 팁 하나 | 정체처럼 고칠 수 없는 건 탓하지 않음 |
 
@@ -119,6 +120,15 @@ Vehicle·NaviHelper SDK는 Pleos 공개 Maven 저장소에서 받으며 인증 �
 | **정차 시 · 코칭 카드** | **하차 · 주행 리포트** |
 | ![정차 카드](docs/screenshots/4_stop_card.png) | ![리포트](docs/screenshots/5_report.png) |
 
+### 캐릭터 반응
+급출발하면 뒤로 젖혀지고, 급제동·회생 감속이면 앞으로 쏠리고, 급회전·커브에서는 원심력 방향으로 기울어집니다. 고칠 이벤트 없이 1분 넘게 부드럽게 달리면 편안히 쉬는 표정이 됩니다.
+
+| 앞으로 쏠림 (급제동) | 뒤로 젖힘 (급출발) | 오른쪽 기울어짐 (왼쪽 차선 변경) | 휴식 (부드러운 주행) |
+|---|---|---|---|
+| ![](docs/screenshots/reactions/reaction_lean_forward.png) | ![](docs/screenshots/reactions/reaction_lean_back.png) | ![](docs/screenshots/reactions/reaction_tilt_right.png) | ![](docs/screenshots/reactions/reaction_resting.png) |
+
+**애니메이션은 바깥에서 주입합니다.** 엔진은 어떤 반응인지만 정하고, 동작은 JSON 키프레임(재빌드 없이 교체 가능) 또는 `ReactionMotion` 구현으로, 그림은 `CharacterRenderer`로 바꿀 수 있습니다 → [캐릭터 애니메이션 설계·주입 가이드](docs/design/character-animation.md)
+
 ### 지도
 - **시나리오 모드:** 주행 데이터의 속도·회전만으로 실제 지나간 길을 복원해 그립니다. 도로 유형(시내·간선·고속도로·굽이길), 차로 위치, 정차 지점, 회전 지점도 데이터에서 찾으므로 지도·회전 안내·게이지 반응이 서로 맞습니다.
 - **실시간 모드:** OpenStreetMap 실제 지도를 GPS로 따라갑니다. 구글 서비스·API 키가 필요 없어 Pleos 차량에서도 동작합니다.
@@ -136,7 +146,7 @@ Vehicle·NaviHelper SDK는 Pleos 공개 Maven 저장소에서 받으며 인증 �
 ## 빠른 시작
 
 ```bash
-./gradlew :core-engine:test :app:testDebugUnitTest      # 자동 테스트 36개
+./gradlew :core-engine:test :app:testDebugUnitTest      # 자동 테스트 54개
 ./gradlew :core-engine:run --args="summary CHILD"        # 9개 시나리오 결과 표
 ./gradlew :app:assembleDebug                             # APK 빌드
 ```
@@ -147,7 +157,7 @@ Vehicle·NaviHelper SDK는 Pleos 공개 Maven 저장소에서 받으며 인증 �
 
 ## 검증
 
-**자동 테스트 36개** — 엔진 24개(시나리오별 원인 판별, 동승자 차이, 배지·효과음 규칙, 예측 안내, 피드백 보정, 조향각 변환, GPS 방위 회귀), 앱 12개(화면 스냅샷 5, 시나리오 지도 6, 실시간 지도 1).
+**자동 테스트 54개** — 엔진 32개(시나리오별 원인 판별, 동승자 차이, 배지·효과음 규칙, 예측 안내, 피드백 보정, 조향각 변환, GPS 방위 회귀, 캐릭터 반응·휴식), 앱 22개(화면 스냅샷 5, 시나리오 지도 6, 실시간 지도 1, 캐릭터 반응 스냅샷 5, 애니메이션 주입 5).
 
 합성 시나리오 9종을 동승자 '아이'로 재생한 결과입니다. 시나리오는 실제 도로 형상(커브 반경 50~80m·회전각 45~80°, 교차로 90° 회전, 2.3초에 한 차로 이동)으로 만들었습니다.
 
@@ -181,16 +191,16 @@ data-you/
 │   └── src/main/kotlin/team/datayou/app/
 │       ├── MainActivity.kt · DataYouViewModel.kt
 │       ├── data/                Replay·Pleos 데이터 소스, NaviHelper, RouteGeometry, LiveLocator
-│       └── ui/                  시작·주행·리포트 화면, ScenarioMap, LiveMap(OSM)
+│       └── ui/                  시작·주행·리포트 화면, ScenarioMap, LiveMap(OSM), anim/(캐릭터 반응 주입)
 ├── sample-data/          시나리오 CSV (재생·주입용)
 ├── docs/                 문서 색인: docs/README.md
 │   ├── overview/                아키텍처·기능 개요 (인터랙티브 HTML)
-│   ├── design/SDD.md            소프트웨어 설계 문서
+│   ├── design/                  SDD(소프트웨어 설계 문서), 캐릭터 애니메이션 주입 가이드
 │   ├── guides/                  실행·시연, 설치 문제 해결
 │   ├── prototype/               인터랙티브 프로토타입
-│   └── screenshots/             앱 화면, 시나리오 지도
+│   └── screenshots/             앱 화면, 시나리오 지도, 캐릭터 반응
 └── tools/                도구 설명: tools/README.md
-    ├── emulator/                설치 복구, Pleos 진단, 차량 신호 주입(sway_demo)
+    ├── emulator/                설치 복구, Pleos 진단, 차량 신호 주입(sway_demo), 애니메이션 교체
     └── prototype/               프로토타입 빌드
 ```
 
@@ -198,7 +208,7 @@ data-you/
 
 - [x] **M1 엔진** — 게이지, 원인 7종, 표시 규칙, 리포트, 시나리오 9종, 재생 CLI, 프로토타입
 - [x] **M2 앱** — Compose 화면(출발·주행·정차 카드·리포트), 재생·실시간 데이터 소스, 효과음·음성, 스냅샷 테스트
-- [x] **M3 Pleos 연동 (코드)** — Vehicle SDK 4종·NaviHelper TBT, AAOS 대체 경로, 런타임 권한, 데이터 기반 지도, 실시간 OSM 지도, 차량 신호 주입 도구
+- [x] **M3 Pleos 연동 (코드)** — Vehicle SDK 4종·NaviHelper TBT, AAOS 대체 경로, 런타임 권한, 데이터 기반 지도, 실시간 OSM 지도, 차량 신호 주입 도구, 캐릭터 반응(주입형 애니메이션)
 - [ ] **M3 시연** — Pleos Connect Emulator 검증·시연 영상
 - [ ] **PT(12/3) 전** — Gleo TTS, 시동·기어 자동 시작, 화면 제약 연동, 내비 위 표시, 실주행 데이터 보정
 - [ ] **이후** — Gleo STT·LLM, HVAC·창문 자동 케어, BLE 센서(위아래 흔들림), 멀미 위험 구간 지도

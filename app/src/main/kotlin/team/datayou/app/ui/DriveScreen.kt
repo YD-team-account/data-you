@@ -30,6 +30,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Animatable
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -107,13 +112,18 @@ fun DriveScreen(s: Screen.Driving, vm: DataYouActions) {
 
         // 다타유 칩: 주행 중 유일한 표시. 편안하면 숨김.
         val focus = s.focus
+        // 편안 단계에서도 반응 직후나 부드러운 주행(휴식 표정) 중에는 보인다
         AnimatedVisibility(
-            visible = focus != null && focus.level != GaugeLevel.COMFORT,
+            visible = focus != null && (focus.level != GaugeLevel.COMFORT || s.reactionShowing || s.resting),
             modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
             enter = fadeIn() + slideInVertically { it / 3 },
             exit = fadeOut(),
         ) {
-            if (focus != null) DataYouChip(focus.profile.type, focus.level, s.badge, s.preAlert)
+            if (focus != null) DataYouChip(
+                focus.profile.type, focus.level,
+                badge = if (focus.level != GaugeLevel.COMFORT) s.badge else null,
+                pulse = s.preAlert, reaction = s.reaction, resting = s.resting,
+            )
         }
 
         // 데모 조작 (재생 데이터일 때만)
@@ -138,12 +148,40 @@ fun DriveScreen(s: Screen.Driving, vm: DataYouActions) {
 }
 
 @Composable
-private fun DataYouChip(type: team.datayou.engine.model.PassengerType, level: GaugeLevel, badge: team.datayou.engine.model.Cause?, pulse: Boolean) {
+private fun DataYouChip(
+    type: team.datayou.engine.model.PassengerType,
+    level: GaugeLevel,
+    badge: team.datayou.engine.model.Cause?,
+    pulse: Boolean,
+    reaction: team.datayou.engine.model.Reaction? = null,
+    resting: Boolean = false,
+) {
     // 예측 안내 중에만 아바타가 숨쉬듯 커졌다 작아진다 (무한 애니메이션은 이때만 돌린다)
     val k = if (pulse) {
         val t = rememberInfiniteTransition(label = "pulse")
         t.animateFloat(1f, 1.08f, infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "k").value
     } else 1f
+
+    // 캐릭터 반응: 동작 정의(ReactionMotion)와 그림(CharacterRenderer)은 바깥에서 주입받는다
+    val motion = team.datayou.app.ui.anim.LocalReactionMotion.current
+    val renderer = team.datayou.app.ui.anim.LocalCharacterRenderer.current
+    val progress = remember { Animatable(1f) }
+    val reduceMotion = rememberReduceMotion()
+    LaunchedEffect(reaction?.timestampMs) {
+        val r = reaction ?: return@LaunchedEffect
+        val ms = motion.durationMs(r.kind)
+        if (reduceMotion || ms <= 0) return@LaunchedEffect
+        progress.snapTo(0f)
+        progress.animateTo(1f, tween(ms, easing = LinearEasing))
+    }
+    val playing = reaction != null && progress.value < 1f
+    val pose = if (playing) motion.pose(reaction!!.kind, progress.value) else team.datayou.app.ui.anim.MotionPose()
+    val mood = when {
+        playing -> motion.mood(reaction!!.kind)
+        resting && level == GaugeLevel.COMFORT -> FaceMood.RESTING
+        else -> FaceMood.NORMAL
+    }
+
     Row(
         Modifier
             .background(Palette.chip, RoundedCornerShape(50))
@@ -151,13 +189,33 @@ private fun DataYouChip(type: team.datayou.engine.model.PassengerType, level: Ga
             .padding(start = 8.dp, end = 14.dp, top = 8.dp, bottom = 8.dp)
             .semantics {
                 liveRegion = LiveRegionMode.Polite
-                contentDescription = "${type.label} ${level.label()}" + (badge?.let { ", ${it.label}" } ?: "")
+                contentDescription = "${type.label} ${level.label()}" + (badge?.let { ", ${it.label}" } ?: "") +
+                    (if (mood == FaceMood.RESTING) ", 편안히 쉬는 중" else "")
             },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(Modifier.scale(k)) { Avatar(type, level, 64.dp) }
+        Box(
+            Modifier.scale(k).graphicsLayer {
+                rotationX = pose.rotationX
+                rotationZ = pose.rotationZ
+                translationX = pose.dxDp * density
+                translationY = pose.dyDp * density
+                scaleX = pose.scale
+                scaleY = pose.scale
+                cameraDistance = 12f * density
+            },
+        ) { renderer(type, level, mood, 64.dp, Modifier) }
         badge?.let { CauseBadge(it, 44.dp) }
+    }
+}
+
+/** 시스템 '애니메이션 줄이기'(애니메이터 배율 0)면 반응 동작을 생략한다. */
+@Composable
+private fun rememberReduceMotion(): Boolean {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    return remember {
+        runCatching { android.provider.Settings.Global.getFloat(ctx.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }.getOrDefault(false)
     }
 }
 

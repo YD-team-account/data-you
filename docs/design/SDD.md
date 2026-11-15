@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | 1.0 (2026.11.15, 공모전 제출 기준) |
+| 문서 버전 | 1.1 (2026.11.15, 공모전 제출 기준) |
 | 대상 | 심사위원, 개발자, 이후 기여자 |
 | 범위 | `core-engine`(멀미 게이지·원인 판별 엔진)과 `app`(Android Automotive / Pleos Connect 앱) |
 | 함께 보기 | [README](../../README.md) · [아키텍처·기능 개요(인터랙티브)](../overview/index.html) · [실행·시연 가이드](../guides/run-and-demo.md) |
@@ -51,6 +51,7 @@
 | FR-10 | 하차 시 원인별 횟수·기여 비율, 10km당 이벤트, 다음 주행 팁을 보여준다 |
 | FR-11 | 녹화 시나리오(CSV) 재생과 실시간 차량 데이터를 같은 엔진으로 처리한다 |
 | FR-12 | 시나리오 지도는 주행 데이터로 복원한 경로로, 실시간 지도는 실제 지도와 GPS로 그린다 |
+| FR-13 | 이벤트가 생기면 동승자 캐릭터가 몸이 쏠린 방향으로 짧게 반응하고, 부드러운 주행이 이어지면 쉬는 표정을 보인다. 동작과 그림은 외부에서 주입할 수 있다 |
 
 ### 2.2 비기능 요구사항
 | ID | 요구사항 | 설계 대응 |
@@ -132,7 +133,7 @@ flowchart TB
 core-engine/src/main/kotlin/team/datayou/engine/
 ├── DataYouEngine.kt      진입점: process(sample) → EngineUpdate
 ├── EngineConfig.kt       모든 기준값·계수
-├── model/                VehicleSample, MotionFrame, Cause, CauseEvent, PassengerProfile
+├── model/                VehicleSample, MotionFrame, Cause, CauseEvent, PassengerProfile, Reaction
 ├── signal/               Filters(LowPass, BandPass), SignalProcessor, SteeringYaw
 ├── dose/                 PassengerTracker (게이지 + 원인 기여 장부)
 ├── cause/                MomentDetector, PatternDetector
@@ -146,6 +147,7 @@ app/src/main/kotlin/team/datayou/app/
 ├── data/                 VehicleDataSource, ReplayDataSource, PleosVehicleDataSource,
 │                         PleosNavigation, RouteGeometry(+RouteNavigation), LiveLocator
 └── ui/                   StartScreen, DriveScreen, ReportScreen, ScenarioMap, LiveMap, Icons, Theme
+    └── anim/             캐릭터 반응 주입 (ReactionMotion, KeyframeReactionMotion, CharacterRenderer)
 ```
 
 ---
@@ -175,6 +177,8 @@ CSV 형식(재생·실주행 공통): `timestamp_ms,speed_mps,yaw_rate_rad_s,hea
 | `stopCard` | 정차로 바뀐 순간의 `StopCard(passenger, level, cause, countSinceLastStop)` |
 | `vehicleStopped`, `speedMps`, `timestampMs` | 상태 |
 | `legacyAlert` | 원안 모드(N분 내 M회) 알림 조건 |
+| `reaction` | 이번 샘플에서 시작하는 캐릭터 반응 `Reaction(kind, cause, 시각)` 또는 null |
+| `resting` | 고칠 이벤트 없이 부드럽게 달리는 중(휴식 표정) |
 
 ### 4.3 리포트 `TripReport`
 `durationMin`, `distanceKm`, `eventCounts`, `actionableEventsPer10Km`, 동승자별 `PassengerReport`(최고 게이지, 단계별 시간, 원인별 기여 비율), `events`, `topImprovement`, `smoothTrip`.
@@ -335,6 +339,10 @@ ISO 2631-1의 멀미 누적 개념(약 0.2Hz에서 최대 민감)을 출발점�
 | 정차 카드 | 정차로 바뀐 순간, 90초 간격 |
 | 예측 안내 | 단계 '주의' 이상 + 다음 회전 300m 이내 |
 | 원안 모드 | 10분 안에 순간 이벤트 3회 이상(옵션) |
+| 캐릭터 반응 | 급출발 → 뒤로 젖힘, 급제동·회생·끊어 밟기 → 앞으로 쏠림, 급회전·커브 → 좌우 가속 반대 방향으로 기울어짐, 정체는 없음. 순간 이벤트 우선, 최소 2초 간격 |
+| 휴식 표정 | 편안 단계 + 시속 7km 이상 + 고칠 수 있는 이벤트 없이 60초 |
+
+캐릭터 반응의 **동작과 그림은 앱 바깥에서 주입**합니다. 엔진은 `ReactionKind`만 정하고, 동작은 `ReactionMotion`(기본: JSON 키프레임, 우선순위 기기 파일 > assets > 내장), 그림은 `CharacterRenderer`가 맡습니다. 자세한 형식은 [캐릭터 애니메이션 설계·주입 가이드](character-animation.md)를 보세요.
 
 ### 7.8 경로 복원 (`RouteGeometry`, 재생 모드)
 1. **추측 항법:** 방향 θ += 요레이트·dt(없으면 방위각 사용), 위치 += v·dt·(cos θ, sin θ).
@@ -393,6 +401,7 @@ ISO 2631-1의 멀미 누적 개념(약 0.2Hz에서 최대 민감)을 출발점�
 | 순간 이벤트 | 급제동 3.0, 급출발 2.5, 급회전 3.0 m/s², 지속 0.3초, 쿨다운 3초, 깜빡이 창 4초, 가산 +6 |
 | 반복 패턴 | 끊어 밟기 60초·6회·15km/h, 정체 120초·3회·30km/h, 커브 30초·4회·1.0 m/s², 쿨다운 60초, 가산 +4 |
 | 표시 | 기여 감쇠 60초, 배지 30초, 교체 1.2배, 정차 0.5 m/s·2초, 정차 카드 90초, 예측 안내 300m |
+| 캐릭터 반응 | 반응 간격 2초, 휴식까지 60초, 휴식 최소 속도 2 m/s |
 | 원안 모드 | 10분, 3회 |
 
 모두 초기값이며 실주행 데이터로 보정합니다(§12).
@@ -403,10 +412,12 @@ ISO 2631-1의 멀미 누적 개념(약 0.2Hz에서 최대 민감)을 출발점�
 
 | 계층 | 도구 | 수 |
 |---|---|---|
-| 엔진 시나리오·규칙 | JUnit5 (`core-engine/src/test`) | 24 |
+| 엔진 시나리오·규칙 | JUnit5 (`core-engine/src/test`) | 32 |
 | 화면 스냅샷 | Robolectric + Roborazzi (`app/src/test`) | 5 |
 | 시나리오 지도 스냅샷 | 〃 | 6 |
 | 실시간 지도 렌더링 | 〃 | 1 |
+| 캐릭터 반응 스냅샷 | 〃 | 5 |
+| 애니메이션 주입(JSON·우선순위) | 〃 | 5 |
 
 | 요구사항 | 대표 테스트 |
 |---|---|
@@ -418,6 +429,7 @@ ISO 2631-1의 멀미 누적 개념(약 0.2Hz에서 최대 민감)을 출발점�
 | FR-9 피드백 | 민감도 상승, 범위 제한 |
 | NFR-2 대체 경로 | 브레이크 정보 없음 → 급제동 / GPS 방위만으로 연속 커브 / 조향각만으로 연속 커브 / GPS 가짜 급회전 회귀 |
 | FR-12 지도 | 차선 변경이 경로에 보임 / 시내는 시내·간선만 / 정체 구간 존재 / 우회전 안내 존재 |
+| FR-13 캐릭터 반응 | 급출발 뒤로·급제동 앞으로 / 왼쪽 차선 변경 → 오른쪽 기울어짐 / 정체 제외 / 2초 간격 / 휴식 조건 / JSON 주입·우선순위 / 주입한 동작·그림 스냅샷 |
 
 합성 시나리오 9종은 실제 도로 형상(커브 반경 50~80m·회전각 45~80°, 교차로 90° 회전, 2.3초에 한 차로 이동)으로 만들었습니다. 결과는 [README](../../README.md#시나리오-재생-결과)에 있습니다.
 

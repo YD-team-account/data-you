@@ -77,6 +77,14 @@ data class EngineConfig(
     // ── 예측 안내 (NaviHelper TBT) ─────────────
     val preAlertDistanceM: Double = 300.0,
 
+    // ── 캐릭터 반응 ──
+    /** 캐릭터 반응 사이 최소 간격 (초). 연달아 흔들리며 시선을 끌지 않도록 */
+    val reactionMinGapSec: Double = 2.0,
+    /** 고칠 수 있는 이벤트 없이 이만큼 달리면 캐릭터가 편안히 쉰다 (초) */
+    val restingAfterSec: Double = 60.0,
+    /** 휴식 표시는 이 속도 이상으로 달리는 중에만 (m/s) */
+    val restingMinSpeedMps: Double = 2.0,
+
     // ── 원안 모드: N분 내 M회 ─────────────────
     val legacyWindowMin: Double = 10.0,
     val legacyMinEvents: Int = 3,

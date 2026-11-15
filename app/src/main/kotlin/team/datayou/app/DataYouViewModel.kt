@@ -64,6 +64,12 @@ sealed interface Screen {
         val tMs: Long = 0,
         /** 실시간 모드: 실제 지도 위 현재 위치 */
         val geo: GeoFix? = null,
+        /** 가장 최근 캐릭터 반응. 화면은 timestampMs가 바뀔 때마다 한 번 재생한다 */
+        val reaction: team.datayou.engine.model.Reaction? = null,
+        /** 반응 직후 잠깐(편안 단계여도) 칩을 보여줄지 */
+        val reactionShowing: Boolean = false,
+        /** 부드러운 주행 중 → 편안히 쉬는 표정 */
+        val resting: Boolean = false,
     ) : Screen
 
     data class Report(val report: TripReport, val sourceLabel: String) : Screen
@@ -79,6 +85,8 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
     private var nav: NavigationSource = FakeNavigation()
     private var cardShownAtMs: Long? = null
     private var locator: LiveLocator? = null
+    private var lastReaction: team.datayou.engine.model.Reaction? = null
+    private var lastReactionWallMs = 0L
     @Volatile private var speedFromGps = false
 
     // ── 효과음·음성 (M3에서 음성은 Gleo AI TTS로 교체) ──
@@ -105,6 +113,7 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
         nav.release()
         nav = if (s.live) PleosNavigation(getApplication()) else FakeNavigation()
         speedFromGps = false
+        lastReaction = null
         cardShownAtMs = null
         val src: VehicleDataSource = if (s.live) {
             PleosVehicleDataSource(getApplication(), viewModelScope)
@@ -178,6 +187,7 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
         }
         val geo = loc?.update(sample)
         val u = e.process(sample) ?: return
+        u.reaction?.let { lastReaction = it; lastReactionWallMs = System.currentTimeMillis() }
         val tbt = nav.update(sample)
         val pre = tbt != null && !u.vehicleStopped && e.shouldPreAlert(tbt.distanceM, tbt.isTurn)
 
@@ -215,6 +225,10 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
                         " GPS" + (if (geo?.gpsMoving == true) "✓" else "–") + (if (speedFromGps) " · 속도=GPS" else "")
                 },
                 tMs = u.timestampMs,
+                reaction = lastReaction,
+                // 반응 동작(약 0.7초)이 끝나고 잠깐 더 보이도록 실제 시간 2.5초
+                reactionShowing = lastReaction != null && System.currentTimeMillis() - lastReactionWallMs < 2500,
+                resting = u.resting,
                 geo = geo ?: s.geo,
             )
         }

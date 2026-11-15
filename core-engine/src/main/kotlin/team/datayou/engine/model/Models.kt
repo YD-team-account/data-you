@@ -66,3 +66,12 @@ data class CauseEvent(
     val peakValue: Double,
     val detail: String = "",
 )
+
+/**
+ * 주행 중 동승자 캐릭터의 짧은 반응 동작. 몸이 쏠리는 방향을 그대로 보여준다.
+ * 급출발 → 뒤로 젖힘, 급제동·회생 감속·끊어 밟기 → 앞으로 쏠림,
+ * 급회전·연속 커브 → 원심력 방향으로 기울어짐 (왼쪽으로 돌면 오른쪽으로 기울어짐).
+ */
+enum class ReactionKind { LEAN_BACK, LEAN_FORWARD, TILT_LEFT, TILT_RIGHT }
+
+data class Reaction(val kind: ReactionKind, val cause: Cause, val timestampMs: Long)

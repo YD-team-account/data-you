@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "note": "다타유 캐릭터 반응 동작. 형식: docs/design/character-animation.md",
+  "reactions": {
+    "LEAN_BACK": {
+      "durationMs": 650,
+      "mood": "SURPRISED",
+      "keyframes": [
+        { "t": 0.00 },
+        { "t": 0.20, "rotationX": -30, "dy": -6 },
+        { "t": 0.55, "rotationX": 8, "dy": 2 },
+        { "t": 1.00 }
+      ]
+    },
+    "LEAN_FORWARD": {
+      "durationMs": 650,
+      "mood": "SURPRISED",
+      "keyframes": [
+        { "t": 0.00 },
+        { "t": 0.20, "rotationX": 30, "dy": 7 },
+        { "t": 0.55, "rotationX": -8, "dy": -2 },
+        { "t": 1.00 }
+      ]
+    },
+    "TILT_LEFT": {
+      "durationMs": 700,
+      "mood": "SURPRISED",
+      "keyframes": [
+        { "t": 0.00 },
+        { "t": 0.22, "rotationZ": -18, "dx": -7 },
+        { "t": 0.58, "rotationZ": 5, "dx": 2 },
+        { "t": 1.00 }
+      ]
+    },
+    "TILT_RIGHT": {
+      "durationMs": 700,
+      "mood": "SURPRISED",
+      "keyframes": [
+        { "t": 0.00 },
+        { "t": 0.22, "rotationZ": 18, "dx": 7 },
+        { "t": 0.58, "rotationZ": -5, "dx": -2 },
+        { "t": 1.00 }
+      ]
+    }
+  }
+}
