@@ -53,7 +53,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * 주행 화면. 실제 차량에서는 내비게이션이 이 자리에 있고, 다타유는 오른쪽 아래 칩만 그린다.
+ * 주행 화면. 실제 차량에서는 내비게이션이 이 자리에 있고, 다 타유는 오른쪽 아래 칩만 그린다.
  * M2에서는 내비 대신 추상 지도를 그려 시연한다.
  */
 @Composable
@@ -85,7 +85,7 @@ fun DriveScreen(s: Screen.Driving, vm: DataYouActions) {
                     }
                 }
             }
-        } else {
+        } else if (!s.passengerPanel) {
             Row(
                 Modifier.align(Alignment.TopStart).padding(20.dp).background(Palette.chip, RoundedCornerShape(12.dp)).padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -96,8 +96,8 @@ fun DriveScreen(s: Screen.Driving, vm: DataYouActions) {
             }
         }
 
-        // 속도
-        Row(
+        // 속도 (동승자 팝업이 떠 있는 출발 전에는 숨김)
+        if (!s.passengerPanel) Row(
             Modifier.align(Alignment.BottomStart).padding(20.dp).background(Palette.chip, RoundedCornerShape(14.dp)).padding(horizontal = 18.dp, vertical = 10.dp),
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -106,23 +106,30 @@ fun DriveScreen(s: Screen.Driving, vm: DataYouActions) {
             Text("km/h", color = Palette.muted, fontSize = 14.sp, modifier = Modifier.padding(bottom = 4.dp))
         }
 
-        // 다타유 칩: 주행 중 유일한 표시. 편안하면 숨김.
+        // 다 타유 칩: 주행 중 유일한 표시. 불편한(주의·힘듦) 동승자만 고른 순서대로 보여주고, 모두 편안하면 숨김.
+        // 단, 반응 직후나 휴식 표정일 때는 대표 동승자 한 명을 보여준다.
         val focus = s.focus
+        val all = s.riders.ifEmpty { listOfNotNull(focus) }
+        val uneasy = all.filter { it.level != GaugeLevel.COMFORT }
+        val riders = uneasy.ifEmpty { listOfNotNull(focus) }
         // 편안 단계에서도 반응 직후나 부드러운 주행(휴식 표정) 중에는 보인다
         AnimatedVisibility(
-            visible = focus != null && (focus.level != GaugeLevel.COMFORT || s.reactionShowing || s.resting),
+            visible = focus != null && (uneasy.isNotEmpty() || s.reactionShowing || s.resting),
             modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
             enter = fadeIn() + slideInVertically { it / 3 },
             exit = fadeOut(),
         ) {
             if (focus != null) DataYouChip(
-                focus.profile.type, focus.level,
+                riders.map { it.profile.type to it.level },
                 badge = if (focus.level != GaugeLevel.COMFORT) s.badge else null,
                 highlight = s.preAlert,
                 holding = if (s.reactionShowing) s.reaction?.kind else null,
                 resting = s.resting,
             )
         }
+
+        // 출발 전 동승자 팝업 (운전석 쪽 왼쪽). 움직이면 효과 없이 바로 사라진다.
+        if (s.passengerPanel) PassengerPanel(s.passengers, vm, Modifier.align(Alignment.TopStart).padding(20.dp))
 
         // 데모 조작 (재생 데이터일 때만)
         DemoBar(s, vm)
@@ -147,8 +154,7 @@ fun DriveScreen(s: Screen.Driving, vm: DataYouActions) {
 
 @Composable
 private fun DataYouChip(
-    type: team.datayou.engine.model.PassengerType,
-    level: GaugeLevel,
+    riders: List<Pair<team.datayou.engine.model.PassengerType, GaugeLevel>>,
     badge: team.datayou.engine.model.Cause?,
     highlight: Boolean,
     holding: team.datayou.engine.model.ReactionKind? = null,
@@ -160,11 +166,13 @@ private fun DataYouChip(
     val motion = team.datayou.app.ui.anim.LocalReactionMotion.current
     val renderer = team.datayou.app.ui.anim.LocalCharacterRenderer.current
     val pose = holding?.let { motion.holdPose(it) } ?: team.datayou.app.ui.anim.MotionPose()
-    val mood = when {
+    fun moodOf(level: GaugeLevel) = when {
         holding != null -> motion.mood(holding)
         resting && level == GaugeLevel.COMFORT -> FaceMood.RESTING
         else -> FaceMood.NORMAL
     }
+    // 여러 명이면 조금 작게. 순서는 고른 순서로 고정해 자리가 바뀌지 않게 한다.
+    val size = if (riders.size <= 2) 64.dp else 52.dp
     val edge = if (highlight) Palette.link else Color(0xFF34404D)
 
     Row(
@@ -174,13 +182,16 @@ private fun DataYouChip(
             .padding(start = 8.dp, end = 14.dp, top = 8.dp, bottom = 8.dp)
             .semantics {
                 liveRegion = LiveRegionMode.Polite
-                contentDescription = "${type.label} ${level.label()}" + (badge?.let { ", ${it.label}" } ?: "") +
-                    (if (mood == FaceMood.RESTING) ", 편안히 쉬는 중" else "") + (if (highlight) ", 곧 회전" else "")
+                contentDescription = riders.joinToString(", ") { (t, l) -> "${t.label} ${l.label()}" } +
+                    (badge?.let { ", ${it.label}" } ?: "") +
+                    (if (resting && holding == null) ", 편안히 쉬는 중" else "") + (if (highlight) ", 곧 회전" else "")
             },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(Modifier.poseLayer(pose)) { renderer(type, level, mood, 64.dp, Modifier) }
+        riders.forEach { (type, level) ->
+            Box(Modifier.poseLayer(pose)) { renderer(type, level, moodOf(level), size, Modifier) }
+        }
         badge?.let { CauseBadge(it, 44.dp) }
     }
 }

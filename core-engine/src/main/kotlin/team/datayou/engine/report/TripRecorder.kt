@@ -87,7 +87,7 @@ data class TripReport(
     val smoothTrip: Boolean,
 ) {
     fun toText(): String = buildString {
-        appendLine("── 다타유 주행 리포트 ──")
+        appendLine("── 다 타유 주행 리포트 ──")
         appendLine("주행 %.1f분 · %.1fkm".format(durationMin, distanceKm))
         if (smoothTrip) appendLine("부드러운 주행이었어요. 동승자 모두 편안했어요.")
         for (p in passengers) {

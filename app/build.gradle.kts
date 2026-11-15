@@ -14,6 +14,11 @@ android {
         targetSdk = 34
         versionCode = 3
         versionName = "0.3.0-m3"
+        // 시연용(true, 기본): 첫 화면에서 녹화 시나리오·실시간을 고른다.
+        // 실차용(false): 첫 화면 없이 실시간 차량 데이터로 바로 주행 화면을 연다.
+        //   ./gradlew :app:assembleDebug -PdemoMode=false
+        val demoMode = (project.findProperty("demoMode") as String?)?.toBooleanStrictOrNull() ?: true
+        buildConfigField("boolean", "DEMO_MODE", demoMode.toString())
     }
 
     // AAOS Car API (CarPropertyManager, CarUxRestrictionsManager)
@@ -36,6 +41,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     testOptions {
         unitTests {

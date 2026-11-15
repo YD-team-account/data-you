@@ -33,10 +33,9 @@ import team.datayou.engine.model.PassengerType
 import team.datayou.engine.report.TripReport
 import java.util.Locale
 
-/** 앱 화면 상태. 출발 → 주행 → 리포트. */
+/** 앱 화면 상태. 출발(데이터 선택) → 주행(동승자 팝업 → 주행) → 리포트. */
 sealed interface Screen {
     data class Start(
-        val selected: Set<PassengerType> = setOf(PassengerType.CHILD, PassengerType.DOG),
         val scenarioAsset: String = ReplayDataSource.SCENARIOS.keys.first(),
         val live: Boolean = false,
     ) : Screen
@@ -72,6 +71,12 @@ sealed interface Screen {
         val resting: Boolean = false,
         /** 정차 카드에서 다시 보여줄 반응 동작 (정차 중에만 움직임) */
         val stopCardReplay: team.datayou.engine.model.ReactionKind? = null,
+        /** 동승자 팝업 표시 여부 (출발 전에만, 움직이면 자동으로 닫힘) */
+        val passengerPanel: Boolean = false,
+        /** 함께 탄 동승자 전원의 현재 상태 (칩에 모두 표시) */
+        val riders: List<PassengerState> = emptyList(),
+        /** 고른 동승자. 비어 있으면 일반 동승자 기준 */
+        val passengers: Set<PassengerType> = emptySet(),
     ) : Screen
 
     data class Report(val report: TripReport, val sourceLabel: String) : Screen
@@ -90,6 +95,11 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
     private var lastReaction: team.datayou.engine.model.Reaction? = null
     private var lastReactionWallMs = 0L
     @Volatile private var speedFromGps = false
+    @Volatile private var lastSampleWallMs = 0L
+    private var geoTicker: kotlinx.coroutines.Job? = null
+    private val store = team.datayou.app.data.PassengerStore(app)
+    /** 재생 모드: 동승자 팝업이 닫힐 때 재생을 시작한다 */
+    private var pendingStart: (() -> Unit)? = null
 
     // ── 효과음·음성 (M3에서 음성은 Gleo AI TTS로 교체) ──
     private val tone = runCatching { ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80) }.getOrNull()
@@ -98,10 +108,28 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
         ttsReady = status == TextToSpeech.SUCCESS
     }.also { it.language = Locale.KOREAN }
 
-    // ── 출발 화면 ──
-    override fun togglePassenger(type: PassengerType) = _screen.update { s ->
-        if (s !is Screen.Start) s else s.copy(selected = if (type in s.selected) s.selected - type else s.selected + type)
+    // ── 동승자 팝업 ──
+    override fun togglePassenger(type: PassengerType) {
+        val d = _screen.value as? Screen.Driving ?: return
+        if (!d.passengerPanel) return
+        val next = if (type in d.passengers) d.passengers - type else d.passengers + type
+        store.save(next)
+        // 출발 전(정차)이라 엔진 상태가 거의 없으므로 새 동승자로 다시 만든다
+        engine = buildEngine(next)
+        _screen.update { s -> if (s is Screen.Driving) s.copy(passengers = next, focus = null, riders = emptyList()) else s }
     }
+
+    override fun closePassengerPanel() {
+        _screen.update { s -> if (s is Screen.Driving) s.copy(passengerPanel = false) else s }
+        pendingStart?.let { pendingStart = null; it() }
+    }
+
+    private fun buildEngine(selected: Set<PassengerType>): DataYouEngine {
+        val types = selected.sortedBy { it.ordinal }.ifEmpty { listOf(PassengerType.ADULT) }
+        return DataYouEngine(types.map { PassengerProfile(id = it.name, type = it) })
+    }
+
+    // ── 출발 화면 ──
 
     override fun selectScenario(asset: String) = _screen.update { s -> if (s is Screen.Start) s.copy(scenarioAsset = asset) else s }
 
@@ -109,9 +137,9 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
 
     override fun startTrip() {
         val s = _screen.value as? Screen.Start ?: return
-        if (s.selected.isEmpty()) return
-        val profiles = s.selected.sortedBy { it.ordinal }.map { PassengerProfile(id = it.name, type = it) }
-        engine = DataYouEngine(profiles)
+        val saved = store.load()
+        engine = buildEngine(saved)
+        pendingStart = null
         nav.release()
         nav = if (s.live) PleosNavigation(getApplication()) else FakeNavigation()
         speedFromGps = false
@@ -123,19 +151,41 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
             ReplayDataSource(getApplication(), s.scenarioAsset, ReplayDataSource.SCENARIOS.getValue(s.scenarioAsset), viewModelScope, speedFactor = 5)
         }
         source = src
-        _screen.value = Screen.Driving(sourceLabel = src.label, isReplay = !s.live, speedFactor = if (s.live) 1 else 5)
+        _screen.value = Screen.Driving(
+            sourceLabel = src.label, isReplay = !s.live, speedFactor = if (s.live) 1 else 5,
+            passengerPanel = true, passengers = saved,
+        )
         if (src is ReplayDataSource) {
             // 시나리오 지도·회전 안내를 데이터에서 복원한 실제 경로로 만든 뒤 재생을 시작한다
             viewModelScope.launch {
                 val route = withContext(Dispatchers.Default) { RouteGeometry.from(src.loadSamples()) }
                 nav = RouteNavigation(route)
                 _screen.update { d -> if (d is Screen.Driving) d.copy(route = route) else d }
-                src.start(onSample = ::onSample, onEnd = ::finishTrip)
+                val begin = { src.start(onSample = ::onSample, onEnd = ::finishTrip) }
+                if ((_screen.value as? Screen.Driving)?.passengerPanel == true) pendingStart = begin else begin()
             }
         } else {
             locator?.stop()
             locator = LiveLocator(getApplication()).also { it.start() }
             src.start(onSample = ::onSample, onEnd = ::finishTrip)
+            // 차량 신호가 안 와도 GPS 위치로 지도를 움직인다 (샘플이 1.5초 이상 없을 때)
+            geoTicker?.cancel()
+            geoTicker = viewModelScope.launch {
+                while (true) {
+                    kotlinx.coroutines.delay(1000)
+                    if (System.currentTimeMillis() - lastSampleWallMs < 1500) continue
+                    val fix = locator?.currentFix() ?: continue
+                    _screen.update { d -> if (d is Screen.Driving) d.copy(geo = fix) else d }
+                }
+            }
+        }
+    }
+
+    init {
+        // 실차용 빌드: 첫 화면 없이 실시간 차량 데이터로 바로 주행 화면(동승자 팝업)을 연다
+        if (!BuildConfig.DEMO_MODE) {
+            _screen.value = Screen.Start(live = true)
+            startTrip()
         }
     }
 
@@ -158,6 +208,7 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
         nav.release()
         locator?.stop()
         locator = null
+        geoTicker?.cancel()
         val e = engine ?: return
         val label = (screen.value as? Screen.Driving)?.sourceLabel ?: ""
         // 실시간 모드는 Pleos 주행거리(Odometer)를 쓰고, 없으면 엔진의 속도 적분값을 쓴다
@@ -167,16 +218,20 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
     }
 
     override fun backToStart() {
+        pendingStart = null
         source?.stop()
         nav.release()
         locator?.stop()
         locator = null
+        geoTicker?.cancel()
         engine = null
-        _screen.value = Screen.Start()
+        _screen.value = Screen.Start(live = !BuildConfig.DEMO_MODE)
+        if (!BuildConfig.DEMO_MODE) startTrip()
     }
 
     // ── 엔진 연결 ──
     private fun onSample(raw: team.datayou.engine.model.VehicleSample) {
+        lastSampleWallMs = System.currentTimeMillis()
         val e = engine ?: return
         // 실시간 모드 대체 경로: 차량 속도가 0인데 GPS가 움직이면 GPS 속도, 핸들 각도가 없으면 GPS 방위
         val loc = locator
@@ -188,12 +243,18 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
             if (sample.yawRateRadPs == null) loc.gpsHeadingIfMoving()?.let { sample = sample.copy(headingDeg = it) }
         }
         val geo = loc?.update(sample)
+        // 출발하면(5km/h 이상) 동승자 팝업을 자동으로 닫는다. 고른 값은 이미 저장돼 있다.
+        val leaving = sample.speedMps > 5 / 3.6
         val u = e.process(sample) ?: return
         u.reaction?.let { lastReaction = it; lastReactionWallMs = System.currentTimeMillis() }
         val tbt = nav.update(sample)
         val pre = tbt != null && !u.vehicleStopped && e.shouldPreAlert(tbt.distanceM, tbt.isTurn)
 
-        if (u.playAlertSound) beep(u.focusPassenger.level)
+        if (u.playAlertSound) {
+            beep(u.focusPassenger.level)
+            // 한 유형만 불편하면 그 유형을, 여럿이면 "동승자들이" 로 짧게 읽어 준다
+            AlertSpeech.of(u.passengers)?.let(::speak)
+        }
 
         _screen.update { s ->
             if (s !is Screen.Driving) return@update s
@@ -212,7 +273,9 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
                 note = null
             }
             s.copy(
+                passengerPanel = s.passengerPanel && !leaving,
                 focus = u.focusPassenger,
+                riders = u.passengers,
                 badge = u.badge,
                 speedKmh = Math.round(u.speedMps * 3.6).toInt(),
                 stopped = u.vehicleStopped,

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>다타유 아키텍처 개요</title>
+<title>다 타유 아키텍처 개요</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
 <style>
@@ -147,7 +147,7 @@ ul.tight li{margin-bottom:6px}
 <nav class="rail" aria-label="주제">
   <div class="brand">
     <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="13" fill="#3CC4A0"/><circle cx="10" cy="12" r="1.8" fill="#0B2A22"/><circle cx="18" cy="12" r="1.8" fill="#0B2A22"/><path d="M9 17q5 4 10 0" stroke="#0B2A22" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-    다타유 DataYou
+    다 타유 DataYou
   </div>
   <ol id="navlist"></ol>
   <p class="meta">아키텍처·기능 개요<br>저장소 커밋 9253049 기준<br>2026.11.15</p>
@@ -157,14 +157,14 @@ ul.tight li{margin-bottom:6px}
 <!-- 1 개요 -->
 <section class="page" id="overview" data-title="개요">
   <h1>차량 데이터로 동승자 멀미를 미리 읽고, 운전자에게는 원인 하나만 보여줍니다</h1>
-  <p class="lead">다타유는 Pleos Connect 차량용 앱입니다. 차의 속도·브레이크·방향지시등·핸들 각도로 동승자별 멀미 게이지를 계산하고, 지금 게이지를 올리는 운전 습관 하나를 아이콘으로 알려줍니다. 자세한 코칭은 차가 멈췄을 때만 보여줍니다.</p>
+  <p class="lead">다 타유는 Pleos Connect 차량용 앱입니다. 차의 속도·브레이크·방향지시등·핸들 각도로 동승자별 멀미 게이지를 계산하고, 지금 게이지를 올리는 운전 습관 하나를 아이콘으로 알려줍니다. 자세한 코칭은 차가 멈췄을 때만 보여줍니다.</p>
   <div class="hmi">
     <div class="screen" aria-label="주행 중 화면 개념도"><svg id="hmiSvg"></svg></div>
     <div class="gaugebox">
       <div class="panel">
         <h3>세 가지 순간에 다르게 말합니다</h3>
         <ul class="tight">
-          <li><b>주행 중</b> · 동승자 얼굴 + 원인 배지 1개. 몸이 쏠리면 캐릭터가 그 방향으로 쏠린 자세로 바뀜. 글자·움직임 없음, 단계가 오를 때만 효과음</li>
+          <li><b>주행 중</b> · 불편한 동승자 전원의 얼굴 + 원인 배지 1개 (편안한 동승자는 숨김). 단계가 오르면 효과음 + 짧은 음성(한 유형이면 "임산부가 불편해해요", 여럿이면 "동승자들이 불편해해요"). 몸이 쏠리면 캐릭터가 그 방향으로 쏠린 자세로 바뀜. 글자·움직임 없음, 단계가 오를 때만 효과음</li>
           <li><b>정차 시</b> · 원인과 개선 팁 카드, 음성 안내, "속 안 좋아요" 피드백</li>
           <li><b>하차 후</b> · 원인별 기여 비율과 다음 주행 팁 하나</li>
         </ul>
@@ -179,7 +179,7 @@ ul.tight li{margin-bottom:6px}
     <div class="fig-n"><b>7종</b><span>운전자에게 알려주는 원인</span></div>
     <div class="fig-n"><b>6가지</b><span>동승자 유형 프리셋</span></div>
     <div class="fig-n"><b>7개</b><span>차량·위치 데이터 채널</span></div>
-    <div class="fig-n"><b>57개</b><span>자동 테스트 (모두 통과)</span></div>
+    <div class="fig-n"><b>63개</b><span>자동 테스트 (모두 통과)</span></div>
   </div>
   <h2>이 문서의 구성</h2>
   <div class="grid3" id="toc"></div>
@@ -288,7 +288,7 @@ ul.tight li{margin-bottom:6px}
       <tr><td data-l="규칙">30초 유지</td><td data-l="내용">배지는 최소 30초 그대로</td><td data-l="왜">깜빡임은 시선을 끔</td></tr>
       <tr><td data-l="규칙">텍스트 없음</td><td data-l="내용">아이콘 뜻은 정차 카드에서 익힘</td><td data-l="왜">주행 중 읽기 금지</td></tr>
       <tr><td data-l="규칙">효과음</td><td data-l="내용">게이지 단계가 오를 때만 1회</td><td data-l="왜">반복 알림은 무시됨</td></tr>
-      <tr><td data-l="규칙">대표 동승자</td><td data-l="내용">여럿이면 가장 힘든 한 명만</td><td data-l="왜">정보량 최소화</td></tr>
+      <tr><td data-l="규칙">대표 동승자</td><td data-l="내용">불편한 동승자는 모두 각자 단계 색으로, 편안한 동승자는 숨김. 배지는 가장 힘든 한 명 기준</td><td data-l="왜">누가 힘든지 한눈에, 정보량은 아이콘으로만</td></tr>
       <tr><td data-l="규칙">예측 안내</td><td data-l="내용">'주의' 이상 + 회전 300m 전이면 칩 테두리를 파랗게 강조 (움직임 없음)</td><td data-l="왜">미리 감속 유도</td></tr>
       <tr><td data-l="규칙">정차 카드</td><td data-l="내용">멈추면 표시, 출발하면 닫힘, 90초 간격</td><td data-l="왜">같은 말 반복 방지</td></tr>
     </tbody>
@@ -354,7 +354,7 @@ ul.tight li{margin-bottom:6px}
 
 <!-- 9 검증 -->
 <section class="page" id="verify" data-title="검증과 도구">
-  <h1>9개 시나리오에서 원인이 의도대로 갈리는지 57개 테스트로 확인합니다</h1>
+  <h1>9개 시나리오에서 원인이 의도대로 갈리는지 63개 테스트로 확인합니다</h1>
   <p class="lead">실제 도로 형상(커브 반경·회전각, 교차로 회전, 한 차로 이동)으로 만든 합성 데이터를 동승자 '아이'로 재생한 결과입니다. 수치보다 원인 구분이 핵심입니다.</p>
   <div class="scroll"><table class="stack">
     <thead><tr><th>시나리오</th><th class="num">최고 게이지</th><th>감지된 원인</th></tr></thead>
@@ -362,10 +362,10 @@ ul.tight li{margin-bottom:6px}
   </table></div>
   <div class="grid2" style="margin-top:28px">
     <div class="panel">
-      <h3>자동 테스트 57개</h3>
+      <h3>자동 테스트 63개</h3>
       <ul class="tight">
         <li><b>엔진 32개</b> · 시나리오별 원인 판별, 동승자 민감도 차이, 배지 30초 유지·효과음 규칙, 원안 모드, 조향각↔회전 변환, GPS 방위각 회귀 방지, 캐릭터 반응·휴식</li>
-        <li><b>앱 25개</b> · 화면 스냅샷 5, 시나리오 지도 스냅샷 6, 실시간 지도 렌더링 1, 캐릭터 반응·주행 중 고정·정차 재생 7, 애니메이션 주입 6</li>
+        <li><b>앱 31개</b> · 화면 스냅샷 6, 시나리오 지도 스냅샷 6, 실시간 지도 렌더링 1, 캐릭터 반응·주행 중 고정·정차 재생 7, 애니메이션 주입 6, 동승자 기억 2, 음성 알림 문구 3</li>
       </ul>
       <pre style="margin-top:12px"><button class="btn copy" data-copy="./gradlew :core-engine:test :app:testDebugUnitTest">복사</button>./gradlew :core-engine:test :app:testDebugUnitTest</pre>
     </div>
@@ -427,7 +427,7 @@ function show() {
   nav.querySelectorAll('a').forEach((a, i) => { if (i === idx) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   const prev = pages[idx - 1], next = pages[idx + 1];
   document.getElementById('foot').innerHTML = (prev ? `<a href="#${prev.id}">← ${prev.dataset.title}</a>` : '<span></span>') + (next ? `<a href="#${next.id}">${next.dataset.title} →</a>` : '');
-  document.title = '다타유 · ' + pages[idx].dataset.title;
+  document.title = '다 타유 · ' + pages[idx].dataset.title;
   (drawers[pages[idx].id] || (() => {}))();
   window.scrollTo(0, 0);
 }
@@ -513,7 +513,7 @@ const STEPS = [
   ['게이지 누적', '동승자마다: 대역 파워 × 0.18 × 민감도를 더하고, 조용하면 초당 0.17씩 회복. 0~100, 40 주의 / 70 힘듦.'],
   ['원인 판별', '순간 이벤트는 기준값을 0.3초 넘으면(동승자별 배율), 반복 패턴은 창 안 횟수로. 브레이크·깜빡이 값으로 급제동/회생, 차선 변경/회전을 가릅니다.'],
   ['기여도', '게이지를 올린 양을 원인별 장부에 적고 60초 시간 가중으로 줄여 갑니다. 앞뒤 흔들림은 정체 → 끊어 밟기 → 최근 30초 순간 원인 순으로 탓을 돌립니다.'],
-  ['표시 규칙', '가장 힘든 동승자 한 명, 기여도 1위 원인 배지(30초 유지, 1.2배 넘어야 교체), 단계가 오를 때만 효과음, 회전 300m 전 예측 안내.'],
+  ['표시 규칙', '불편한 동승자 전원의 얼굴(각자 단계 색, 편안하면 숨김), 가장 힘든 한 명 기준 기여도 1위 원인 배지(30초 유지, 1.2배 넘어야 교체), 단계가 오를 때만 효과음, 회전 300m 전 예측 안내.'],
   ['정차 · 하차', '2초 넘게 멈추면 정차 카드와 음성(90초 간격). 주행이 끝나면 원인별 리포트와 다음 주행 팁 하나.'],
 ];
 const pipe = document.getElementById('pipe');
@@ -597,7 +597,8 @@ drawCauses('all');
 
 /* ---------- 6. screens ---------- */
 const SHOTS = [
-  ['1_start.png', '출발', '동승자 유형과 데이터(시나리오 또는 실시간)를 고릅니다.', ['동승자 여러 명 선택 가능', '유형마다 민감도·이벤트 배율이 다름', '실시간을 고르면 차량·위치 권한을 요청']],
+  ['1_start.png', '출발 (시연용)', '시연용 빌드에서만 보이는 화면입니다. 데이터(시나리오 또는 실시간)를 고르고 주행을 시작합니다.', ['실차용 빌드는 이 화면 없이 바로 주행 화면', '동승자는 다음 화면 팝업에서 (선택)', '실시간을 고르면 차량·위치 권한을 요청']],
+  ['1b_passenger_panel.png', '동승자 팝업', '내비 화면 왼쪽(운전석 쪽)에 좁게 뜹니다. 고르지 않아도 출발할 수 있습니다.', ['여러 명 선택 가능 · 유형마다 민감도가 다름', '고른 값은 다음 주행에도 그대로', '5km/h 이상 움직이면 효과 없이 자동으로 닫힘']],
   ['2_driving_caution.png', '주행 중 · 주의', '게이지가 40을 넘으면 오른쪽 아래에 동승자 얼굴과 원인 배지가 나타납니다.', ['글자 없이 얼굴 표정 + 원인 아이콘', '얼굴 테두리 색이 단계(주의 노랑)', '단계가 오를 때 효과음 1회']],
   ['3_driving_discomfort.png', '주행 중 · 힘듦', '강변 연속 커브에서 게이지가 70을 넘은 순간입니다. 회전 안내 칸이 강조되면 예측 안내 상태입니다.', ['얼굴 테두리 주황 = 힘듦', '배지 = 좌우 흔들림(연속 커브)', '지도는 실제 데이터로 복원한 굽이길']],
   ['4_stop_card.png', '정차 카드', '차가 멈추면 원인과 개선 팁을 보여주고 음성으로 읽어 줍니다.', ['출발하면 자동으로 닫힘', '"괜찮아요 / 속 안 좋아요"로 민감도 보정', '같은 카드는 90초 간격']],

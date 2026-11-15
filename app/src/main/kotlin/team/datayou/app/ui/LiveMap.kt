@@ -39,6 +39,7 @@ import java.io.File
 fun LiveMap(fix: GeoFix?, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     val map = remember { createMap(ctx) }
+    val online = remember { hasInternet(ctx) }
     DisposableEffect(Unit) {
         map.onResume()
         onDispose {
@@ -48,14 +49,24 @@ fun LiveMap(fix: GeoFix?, modifier: Modifier = Modifier) {
     }
     Box(modifier.fillMaxSize().background(Color(0xFF0E1216))) {
         AndroidView(factory = { map }, modifier = Modifier.fillMaxSize(), update = { mv ->
-            fix?.let {
-                mv.controller.setCenter(GeoPoint(it.lat, it.lon))
-                mv.mapOrientation = (-it.bearingDeg).toFloat()
+            if (fix != null) {
+                mv.controller.setCenter(GeoPoint(fix.lat, fix.lon))
+                mv.mapOrientation = (-fix.bearingDeg).toFloat()
+            } else {
+                // 위치를 받기 전에도 지도가 보이도록 서울시청에 맞춰 둔다
+                mv.controller.setCenter(DEFAULT_CENTER)
             }
         })
+        if (!online) {
+            Text(
+                "인터넷에 연결되지 않아 지도를 불러올 수 없어요 · 에뮬레이터의 Wi-Fi·모바일 데이터를 확인하세요",
+                color = Palette.text, fontSize = 14.sp,
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 20.dp).background(Palette.chip, RoundedCornerShape(10.dp)).padding(10.dp),
+            )
+        }
         if (fix == null) {
             Text(
-                "현재 위치를 기다리는 중 · 에뮬레이터 ⋯ ▸ Location에서 위치를 지정하세요",
+                "현재 위치를 기다리는 중 (지도는 서울시청 기준) · 에뮬레이터 ⋯ ▸ Location에서 위치를 지정하세요",
                 color = Palette.muted, fontSize = 14.sp,
                 modifier = Modifier.align(Alignment.Center).background(Palette.chip, RoundedCornerShape(10.dp)).padding(10.dp),
             )
@@ -83,6 +94,13 @@ fun LiveMap(fix: GeoFix?, modifier: Modifier = Modifier) {
     }
 }
 
+private val DEFAULT_CENTER = GeoPoint(37.5663, 126.9779)
+
+private fun hasInternet(ctx: Context): Boolean = runCatching {
+    val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+    cm.getNetworkCapabilities(cm.activeNetwork)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+}.getOrDefault(true)
+
 private fun createMap(ctx: Context): MapView {
     Configuration.getInstance().apply {
         userAgentValue = ctx.packageName
@@ -104,6 +122,7 @@ private fun createMap(ctx: Context): MapView {
         setMultiTouchControls(false)
         zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
         controller.setZoom(17.0)
+        controller.setCenter(DEFAULT_CENTER)
         isFlingEnabled = false
         // 타일을 받기 전 바탕도 어둡게 (밝은 격자가 번쩍이지 않게)
         overlayManager.tilesOverlay.loadingBackgroundColor = android.graphics.Color.rgb(14, 18, 22)

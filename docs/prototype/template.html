@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>다타유 인터랙티브 프로토타입</title>
+<title>다 타유 인터랙티브 프로토타입</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
@@ -62,13 +62,16 @@ h1, h2, h3 { text-wrap: balance; }
 .stopped-pill { position: absolute; left: 1.5em; top: 1.5em; display: none; align-items: center; gap: .6em; background: #1C2530; border-radius: .8em; padding: .6em 1em; font-size: 1em; color: #C9D2DB; }
 .stopped-pill i { width: .6em; height: .6em; border-radius: 50%; background: var(--discomfort); display: block; }
 
-/* 다타유 칩 (주행 중 유일한 표시) */
+/* 다 타유 칩 (주행 중 유일한 표시) */
 .chip { position: absolute; right: 1.5em; bottom: 1.5em; display: flex; align-items: center; gap: .6em; background: #1C2530; border: 1px solid #34404D; border-radius: 999px; padding: .5em .9em .5em .5em; transition: opacity .4s, transform .4s; }
 .chip.hidden { opacity: 0; transform: translateY(.6em); pointer-events: none; }
 .avatar { width: 4em; height: 4em; border-radius: 50%; border: .32em solid var(--caution); background: #26313D; display: flex; align-items: center; justify-content: center; transition: border-color .4s; }
 .avatar svg { width: 2.5em; height: 2.5em; }
-.chip.pulse .avatar { animation: pulse 1.2s ease-in-out infinite; }
-@keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(242,179,61,.0); } 50% { box-shadow: 0 0 0 .5em rgba(242,179,61,.35); } }
+.avatars { display: flex; gap: .45em; }
+.avatars.many .avatar { width: 3.3em; height: 3.3em; border-width: .28em; }
+.avatars.many .avatar svg { width: 2.05em; height: 2.05em; }
+/* 예측 안내: 주행 중에는 움직이지 않도록 깜빡임 대신 파란 테두리 (Android for Cars SA-1) */
+.chip.pulse { box-shadow: 0 0 0 3px #3D8BFF; }
 .badge { width: 2.75em; height: 2.75em; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--moment); }
 .badge svg { width: 1.6em; height: 1.6em; }
 
@@ -167,7 +170,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
 <main class="page">
   <header class="head">
     <div>
-      <div class="tag">다타유 · 다 타유? · Pleos Connect 앱 시안</div>
+      <div class="tag">다 타유 · Pleos Connect 앱 시안</div>
       <h1>인터랙티브 프로토타입</h1>
       <p>운전자는 못 느끼는 동승자의 멀미를 보여주는 화면을 직접 재생해 보세요. 게이지, 원인 배지, 정차 카드, 리포트는 모두 <b>core-engine</b>이 합성 주행 데이터로 계산한 결과입니다.</p>
     </div>
@@ -179,23 +182,23 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
         <svg viewBox="0 0 1280 480" preserveAspectRatio="xMidYMid slice">
           <rect width="1280" height="480" fill="#121820"></rect>
           <g id="mapMove">
-            <path id="roads" d="" stroke="#232D38" stroke-width="34" fill="none" stroke-linecap="round"></path>
-            <path id="side" d="" stroke="#1B232C" stroke-width="18" fill="none"></path>
-            <path id="route" d="" stroke="#3D8BFF" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+            <path id="side" d="" stroke="#1B232C" stroke-width="12" fill="none" stroke-linecap="round"></path>
+            <path id="roads" d="" stroke="#232D38" stroke-width="20" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+            <path id="route" d="" stroke="#3D8BFF" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
           </g>
-          <circle cx="420" cy="300" r="17" fill="#3D8BFF"></circle>
-          <path d="M432 300 L410 290 L414 300 L410 310 Z" fill="#FFFFFF"></path>
+          <circle cx="640" cy="330" r="17" fill="#3D8BFF"></circle>
+          <path d="M640 318 L650 340 L640 335 L630 340 Z" fill="#FFFFFF"></path>
         </svg>
       </div>
       <div class="tbt" id="tbt">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#F2F4F6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:2.2em;height:2.2em"><path d="M7 20V11a4 4 0 0 1 4-4h8"></path><path d="M15 3l4 4-4 4"></path></svg>
-        <div><div class="dist" id="tbtDist">1200m</div><div class="road">우회전 · 강변로</div></div>
+        <svg id="tbtIcon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#F2F4F6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:2.2em;height:2.2em"><path d="M7 20V11a4 4 0 0 1 4-4h8"></path><path d="M15 3l4 4-4 4"></path></svg>
+        <div><div class="dist" id="tbtDist">1200m</div><div class="road" id="tbtRoad">우회전</div></div>
       </div>
       <div class="stopped-pill" id="stoppedPill"><i></i><span>정차 중 · 0 km/h</span></div>
       <div class="speed"><b id="spd">0</b><span>km/h</span></div>
 
       <div class="chip hidden" id="chip" role="status" aria-live="polite">
-        <div class="avatar" id="avatar"></div>
+        <div class="avatars" id="avatars"></div>
         <div class="badge" id="badge"></div>
       </div>
 
@@ -223,7 +226,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
         </div>
         <div class="people" id="people"></div>
         <div class="start-row">
-          <span id="selCount">2명 선택됨 · 가장 힘든 동승자 한 명만 운전 화면에 표시돼요</span>
+          <span id="selCount">2명 선택됨 · 운전 화면에 모두 표시돼요</span>
           <button type="button" class="go" id="goBtn">이대로 출발</button>
         </div>
       </div>
@@ -290,7 +293,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
     <div class="panel">
       <h2>보는 법</h2>
       <ol class="how">
-        <li><b>출발 화면</b>에서 동승자를 고르고 '이대로 출발'을 누르세요. 여러 명이면 가장 힘든 한 명만 표시됩니다.</li>
+        <li><b>출발 화면</b>에서 동승자를 고르고 '이대로 출발'을 누르세요. 여러 명이면 모두의 얼굴이 각자 단계 색으로 표시됩니다.</li>
         <li><b>주행 중</b>에는 오른쪽 아래 아이콘과 원인 배지 1개만 뜹니다. 글자는 없고, 단계가 오를 때만 효과음이 1회 울립니다.</li>
         <li>게이지가 '주의' 이상인데 <b>다음 회전이 300m 안</b>이면, 내비 안내와 아이콘이 미리 강조됩니다(NaviHelper 예측).</li>
         <li><b>정차하면</b> 원인과 한 줄 코칭이 담긴 카드가 뜨고, Gleo가 읽어 줍니다. 정체는 운전자 탓으로 코칭하지 않습니다.</li>
@@ -302,11 +305,14 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
 </main>
 
 <script type="application/json" id="timeline">__TIMELINE__</script>
+<script type="application/json" id="routes">__ROUTES__</script>
 <script>
 (function () {
   "use strict";
   var DATA = JSON.parse(document.getElementById("timeline").textContent);
   var CAUSES = DATA.causes;
+  /* 시나리오별 실제 경로 (녹화 CSV의 속도·요레이트로 복원, tools/prototype/routes.py) */
+  var ROUTES = JSON.parse(document.getElementById("routes").textContent);
 
   var SCEN = [
     ["family_trip", "가족 나들이 (시내 → 고속도로 → 강변 커브 → 정체)"],
@@ -375,7 +381,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
   var dist = 0, lastIdx = -1, cardUntil = -1, feedbackNote = "";
   var merged = [];
 
-  /* 선택한 동승자들의 타임라인을 합쳐 '가장 힘든 한 명'을 고른다 (엔진의 대표 동승자 규칙과 동일). */
+  /* 선택한 동승자들의 타임라인을 합친다. 칩에는 전원을 보여주고, 원인 배지·정차 카드는 가장 힘든 한 명 기준(엔진 규칙과 동일). */
   function buildMerged() {
     var keys = TYPES.map(function (x) { return x.k; }).filter(function (k) { return selected[k]; });
     var runs = keys.map(function (k) { return { k: k, r: DATA.scenarios[scenario][k] }; });
@@ -394,25 +400,42 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
         if (f[8] && x.k === best.k) cards.push({ msg: f[8], cause: f[9] });
       });
       var sound = runs.some(function (x) { return x.k === best.k && x.r.frames[i][6]; });
-      merged.push({ t: best.f[0], v: best.f[1], g: best.f[2], lv: best.f[3], b: best.f[4], stop: best.f[5], snd: sound, ev: Object.keys(evs), card: cards[0] || null, who: best.k });
+      var all = runs.map(function (x) { return { k: x.k, lv: x.r.frames[i][3] }; });
+      var worst = all.reduce(function (m, x) { return Math.max(m, x.lv); }, 0);
+      merged.push({ t: best.f[0], v: best.f[1], g: best.f[2], lv: worst, b: best.f[4], stop: best.f[5], snd: sound, ev: Object.keys(evs), card: cards[0] || null, who: best.k, all: all });
     }
     el("seek").max = String(n - 1);
     drawChart();
   }
 
-  /* ── 지도 (주행거리만큼 왼쪽으로 흐르는 추상 도로) ── */
+  /* ── 지도: 주행 데이터로 복원한 실제 경로를 따라 이동 (진행 방향이 위) ── */
+  var MAP_SCALE = 1.3;      // 화면 단위/미터
+  var routeS = 0;           // 현재 누적 거리(m)
   function buildMap() {
-    var d = "M-200 300", s = "", x = -200;
-    for (var i = 0; i < 40; i++) {
-      x += 160;
-      var y = 300 + Math.sin(i * 0.9) * 40;
-      d += " L" + x + " " + y.toFixed(0);
-      if (i % 3 === 0) s += " M" + x + " " + (y - 20).toFixed(0) + " L" + (x + 60) + " -40";
-      if (i % 4 === 1) s += " M" + x + " " + (y + 20).toFixed(0) + " L" + (x - 40) + " 520";
-    }
-    el("roads").setAttribute("d", d);
-    el("route").setAttribute("d", d);
-    el("side").setAttribute("d", s);
+    var r = ROUTES[scenario];
+    el("roads").setAttribute("d", r.road);
+    el("route").setAttribute("d", r.road);
+    el("side").setAttribute("d", r.side);
+  }
+  function placeMap(tf) {
+    var pose = ROUTES[scenario].pose, n = pose.length;
+    var i = Math.max(0, Math.min(n - 1, Math.floor(tf))), j = Math.min(n - 1, i + 1), a = Math.min(1, Math.max(0, tf - i));
+    var p = pose[i], q = pose[j];
+    var x = p[0] + (q[0] - p[0]) * a, y = p[1] + (q[1] - p[1]) * a;
+    var dh = q[2] - p[2]; while (dh > 180) dh -= 360; while (dh < -180) dh += 360;
+    var h = p[2] + dh * a;
+    routeS = p[3] + (q[3] - p[3]) * a;
+    el("mapMove").setAttribute("transform",
+      "translate(640 330) rotate(" + (h - 90).toFixed(2) + ") scale(" + MAP_SCALE + ") translate(" + (-x).toFixed(1) + " " + y.toFixed(1) + ")");
+  }
+  var ARROW_RIGHT = '<path d="M7 20V11a4 4 0 0 1 4-4h8"></path><path d="M15 3l4 4-4 4"></path>';
+  var ARROW_LEFT = '<path d="M17 20V11a4 4 0 0 0-4-4H5"></path><path d="M9 3L5 7l4 4"></path>';
+  var ARROW_UP = '<path d="M12 21V4"></path><path d="M6 10l6-6 6 6"></path>';
+  /* 다음 회전까지 거리. 없으면 null */
+  function nextTurn() {
+    var r = ROUTES[scenario];
+    for (var k = 0; k < r.turns.length; k++) if (r.turns[k][0] > routeS + 5) return { d: r.turns[k][0] - routeS, left: r.turns[k][1] > 0 };
+    return null;
   }
 
   /* ── 출발 화면 ── */
@@ -426,7 +449,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
     });
     el("people").innerHTML = html;
     var n = Object.keys(selected).filter(function (k) { return selected[k]; }).length;
-    el("selCount").textContent = n ? n + "명 선택됨 · 가장 힘든 동승자 한 명만 운전 화면에 표시돼요" : "동승자를 한 명 이상 골라주세요";
+    el("selCount").textContent = n ? n + "명 선택됨 · 운전 화면에 모두 표시돼요" : "동승자를 한 명 이상 골라주세요";
     el("goBtn").disabled = n === 0;
   }
   el("people").addEventListener("click", function (e) {
@@ -453,14 +476,24 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
       o.start(); o.stop(actx.currentTime + 0.55);
     } catch (err) { /* 오디오를 쓸 수 없는 환경 */ }
   }
-  function speak(text) {
-    if (!el("soundOn").checked || speed > 5) return;
+  function speak(text, always) {
+    if (!el("soundOn").checked || (speed > 5 && !always)) return;
     try {
       var u = new SpeechSynthesisUtterance(text.replace(/·/g, ","));
       u.lang = "ko-KR"; u.rate = 1.05;
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(u);
     } catch (err) { /* 음성 합성을 쓸 수 없는 환경 */ }
+  }
+
+  /* 단계가 오를 때 읽어 줄 음성: 한 유형만 불편하면 그 유형, 여럿이면 "동승자들이" (앱 AlertSpeech와 같은 규칙) */
+  function alertSpeech(all) {
+    var uneasy = all.filter(function (x) { return x.lv > 0; });
+    if (!uneasy.length) return null;
+    if (uneasy.length > 1) return "동승자들이 불편해해요";
+    var w = uneasy[0].k === "SENSITIVE_ADULT" ? "멀미 민감 동승자" : nameOf(uneasy[0].k), c = w.charCodeAt(w.length - 1);
+    var josa = (c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28) ? "이" : "가";
+    return w + josa + " 불편해해요";
   }
 
   /* ── 로그 ── */
@@ -483,17 +516,24 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
     el("stoppedPill").style.display = stopped ? "flex" : "none";
     el("tbt").style.display = stopped ? "none" : "flex";
 
-    var tb = 1200 - (dist % 1200);
-    el("tbtDist").textContent = Math.round(tb / 10) * 10 + "m";
-    var pre = f.lv >= 1 && tb <= 300 && !stopped;
+    var turn = nextTurn();
+    var tb = turn ? turn.d : Math.max(0, ROUTES[scenario].len - routeS);
+    el("tbtDist").textContent = tb >= 1000 ? (tb / 1000).toFixed(1) + "km" : Math.round(tb / 10) * 10 + "m";
+    el("tbtRoad").textContent = turn ? (turn.left ? "좌회전" : "우회전") : "직진";
+    el("tbtIcon").innerHTML = turn ? (turn.left ? ARROW_LEFT : ARROW_RIGHT) : ARROW_UP;
+    var pre = !!turn && f.lv >= 1 && tb <= 300 && !stopped;
     el("tbt").classList.toggle("pre", pre);
 
     var chip = el("chip");
     chip.classList.toggle("hidden", f.lv === 0);
     chip.classList.toggle("pulse", pre);
-    var av = el("avatar");
-    av.style.borderColor = COLORS[f.lv];
-    av.innerHTML = face(f.who, f.lv);
+    /* 불편한(주의·힘듦) 동승자만 고른 순서대로. 편안한 동승자는 띄우지 않는다 */
+    var uneasy = f.all.filter(function (x) { return x.lv > 0; });
+    var avs = el("avatars");
+    avs.classList.toggle("many", uneasy.length > 2);
+    avs.innerHTML = uneasy.map(function (x) {
+      return '<div class="avatar" style="border-color:' + COLORS[x.lv] + '">' + face(x.k, x.lv) + "</div>";
+    }).join("");
     if (f.b) {
       el("badge").style.display = "flex";
       el("badge").style.background = causeColor(f.b);
@@ -501,14 +541,19 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
     } else {
       el("badge").style.display = "none";
     }
-    chip.setAttribute("aria-label", nameOf(f.who) + " " + ["편안", "주의", "힘듦"][f.lv] + (f.b ? ", " + CAUSES[f.b].label : ""));
+    chip.setAttribute("aria-label", uneasy.map(function (x) { return nameOf(x.k) + " " + ["편안", "주의", "힘듦"][x.lv]; }).join(", ") + (f.b ? ", " + CAUSES[f.b].label : ""));
 
     if (fire) {
       f.ev.forEach(function (e) {
         var c = CAUSES[e];
         log(f.t, c.actionable ? "" : "sit", "이벤트  " + c.label + (c.actionable ? "" : " (운전자 탓 아님)"));
       });
-      if (f.snd) { beep(f.lv); log(f.t, "snd", "♪ 효과음 · " + nameOf(f.who) + " " + ["편안", "주의", "힘듦"][f.lv] + " 단계로 상승 (게이지 " + f.g + ")"); }
+      if (f.snd) {
+        beep(f.lv);
+        var say = alertSpeech(f.all);
+        if (say) setTimeout(function () { speak(say, true); }, 450);
+        log(f.t, "snd", "♪ 효과음 + 음성 \u201C" + (say || "") + "\u201D · " + nameOf(f.who) + " " + ["편안", "주의", "힘듦"][f.lv] + " 단계로 상승 (게이지 " + f.g + ")");
+      }
       if (f.card) showCard(f, idx);
       if (pre && !render.preShown) { log(f.t, "snd", "예측 안내 · 300m 앞 회전, 미리 감속 권장"); }
       render.preShown = pre;
@@ -610,8 +655,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
     t = Math.min(n - 1, t + dt * speed);
     var idx = Math.floor(t);
     var f = merged[idx];
-    dist += (f.v / 3.6) * dt * speed;
-    el("mapMove").setAttribute("transform", "translate(" + (-(dist * 0.6) % 640).toFixed(1) + " 0)");
+    placeMap(t);
     for (var i = idxBefore + 1; i <= idx; i++) render(i, true);
     if (idx === idxBefore) render(idx, false);
     el("seek").value = String(idx);
@@ -622,7 +666,8 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
   }
   function reset(toStart) {
     setPlaying(false);
-    t = 0; dist = 0; hideCard();
+    t = 0; hideCard();
+    buildMap(); placeMap(0);
     el("log").innerHTML = "";
     el("reportView").classList.remove("show");
     buildMerged();
@@ -656,6 +701,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
     el("reportView").classList.remove("show");
     if (phase === "report") phase = "drive";
     t = Number(this.value); hideCard();
+    placeMap(t);
     render(Math.floor(t), false);
     el("clock").textContent = fmtT(merged[Math.floor(t)].t) + " / " + fmtT(merged[merged.length - 1].t);
     drawChart();
