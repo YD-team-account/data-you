@@ -44,7 +44,7 @@ fun StartScreen(s: Screen.Start, vm: DataYouActions) {
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("다 타유!", color = Palette.comfort, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text("다 타유", color = Palette.comfort, fontSize = 15.sp, fontWeight = FontWeight.Medium)
             Text("오늘은 누가 함께 타나요?", color = Palette.text, fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
             Text("선택한 동승자 기준으로 흔들림을 살펴볼게요. 운전 중에는 작은 아이콘으로만 알려드려요.", color = Palette.muted, fontSize = 16.sp)
         }

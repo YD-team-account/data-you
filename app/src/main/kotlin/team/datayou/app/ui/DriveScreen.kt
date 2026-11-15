@@ -53,7 +53,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * 주행 화면. 실제 차량에서는 내비게이션이 이 자리에 있고, ‘다 타유!’는 오른쪽 아래 칩만 그린다.
+ * 주행 화면. 실제 차량에서는 내비게이션이 이 자리에 있고, 다 타유는 오른쪽 아래 칩만 그린다.
  * M2에서는 내비 대신 추상 지도를 그려 시연한다.
  */
 @Composable
@@ -106,7 +106,7 @@ fun DriveScreen(s: Screen.Driving, vm: DataYouActions) {
             Text("km/h", color = Palette.muted, fontSize = 14.sp, modifier = Modifier.padding(bottom = 4.dp))
         }
 
-        // 다 타유! 칩: 주행 중 유일한 표시. 편안하면 숨김.
+        // 다 타유 칩: 주행 중 유일한 표시. 편안하면 숨김.
         val focus = s.focus
         // 편안 단계에서도 반응 직후나 부드러운 주행(휴식 표정) 중에는 보인다
         AnimatedVisibility(

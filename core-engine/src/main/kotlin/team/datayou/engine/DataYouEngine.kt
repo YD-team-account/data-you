@@ -16,7 +16,7 @@ import team.datayou.engine.signal.BandPass
 import team.datayou.engine.signal.SignalProcessor
 
 /**
- * 다 타유! 엔진 진입점. 안드로이드 의존성이 없는 순수 Kotlin이라
+ * 다 타유 엔진 진입점. 안드로이드 의존성이 없는 순수 Kotlin이라
  * 앱(AAOS)·CLI·테스트 어디서나 같은 코드로 동작한다.
  *
  * 사용법:

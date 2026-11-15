@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>다 타유! 아키텍처 개요</title>
+<title>다 타유 아키텍처 개요</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
 <style>
@@ -147,7 +147,7 @@ ul.tight li{margin-bottom:6px}
 <nav class="rail" aria-label="주제">
   <div class="brand">
     <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="13" fill="#3CC4A0"/><circle cx="10" cy="12" r="1.8" fill="#0B2A22"/><circle cx="18" cy="12" r="1.8" fill="#0B2A22"/><path d="M9 17q5 4 10 0" stroke="#0B2A22" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-    다 타유! DataYou
+    다 타유 DataYou
   </div>
   <ol id="navlist"></ol>
   <p class="meta">아키텍처·기능 개요<br>저장소 커밋 9253049 기준<br>2026.11.15</p>
@@ -157,7 +157,7 @@ ul.tight li{margin-bottom:6px}
 <!-- 1 개요 -->
 <section class="page" id="overview" data-title="개요">
   <h1>차량 데이터로 동승자 멀미를 미리 읽고, 운전자에게는 원인 하나만 보여줍니다</h1>
-  <p class="lead">‘다 타유!’는 Pleos Connect 차량용 앱입니다. 차의 속도·브레이크·방향지시등·핸들 각도로 동승자별 멀미 게이지를 계산하고, 지금 게이지를 올리는 운전 습관 하나를 아이콘으로 알려줍니다. 자세한 코칭은 차가 멈췄을 때만 보여줍니다.</p>
+  <p class="lead">다 타유는 Pleos Connect 차량용 앱입니다. 차의 속도·브레이크·방향지시등·핸들 각도로 동승자별 멀미 게이지를 계산하고, 지금 게이지를 올리는 운전 습관 하나를 아이콘으로 알려줍니다. 자세한 코칭은 차가 멈췄을 때만 보여줍니다.</p>
   <div class="hmi">
     <div class="screen" aria-label="주행 중 화면 개념도"><svg id="hmiSvg"></svg></div>
     <div class="gaugebox">
@@ -427,7 +427,7 @@ function show() {
   nav.querySelectorAll('a').forEach((a, i) => { if (i === idx) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   const prev = pages[idx - 1], next = pages[idx + 1];
   document.getElementById('foot').innerHTML = (prev ? `<a href="#${prev.id}">← ${prev.dataset.title}</a>` : '<span></span>') + (next ? `<a href="#${next.id}">${next.dataset.title} →</a>` : '');
-  document.title = '다 타유! · ' + pages[idx].dataset.title;
+  document.title = '다 타유 · ' + pages[idx].dataset.title;
   (drawers[pages[idx].id] || (() => {}))();
   window.scrollTo(0, 0);
 }

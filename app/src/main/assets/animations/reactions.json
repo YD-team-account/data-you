@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "다 타유! 캐릭터 반응 동작. 형식: docs/design/character-animation.md",
+  "note": "다 타유 캐릭터 반응 동작. 형식: docs/design/character-animation.md",
   "reactions": {
     "LEAN_BACK": {
       "durationMs": 650,
