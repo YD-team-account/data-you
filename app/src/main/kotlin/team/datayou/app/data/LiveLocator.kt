@@ -111,6 +111,9 @@ class LiveLocator(context: Context) {
         return GeoFix(lat, lon, bearing, moving)
     }
 
+    /** 차량 샘플이 오지 않을 때(속도 권한·신호 없음)도 지도를 GPS 위치에 맞추기 위한 현재 위치 */
+    fun currentFix(): GeoFix? = if (lat.isNaN()) null else GeoFix(lat, lon, bearing, isGpsFresh() && gpsMoving)
+
     private companion object {
         const val TAG = "DataYouLoc"
     }

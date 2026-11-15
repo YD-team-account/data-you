@@ -40,7 +40,14 @@ fun StartScreen(s: Screen.Start, vm: DataYouActions) {
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("다 타유", color = Palette.comfort, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("다 타유", color = Palette.comfort, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    "시연용 화면 · 실차에서는 이 화면 없이 바로 주행 화면으로 시작해요",
+                    color = Palette.caution, fontSize = 13.sp,
+                    modifier = Modifier.border(1.dp, Palette.caution, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
+                )
+            }
             Text("함께 탄 사람까지 편안하게", color = Palette.text, fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
             Text("동승자는 주행 화면 왼쪽에서 고를 수 있어요. 고르지 않아도 바로 출발할 수 있고, 지난번 선택을 기억해요.", color = Palette.muted, fontSize = 16.sp)
         }

@@ -136,7 +136,7 @@ Vehicle·NaviHelper SDK는 Pleos 공개 Maven 저장소에서 받으며 인증 �
 
 ### 지도
 - **시나리오 모드:** 주행 데이터의 속도·회전만으로 실제 지나간 길을 복원해 그립니다. 도로 유형(시내·간선·고속도로·굽이길), 차로 위치, 정차 지점, 회전 지점도 데이터에서 찾으므로 지도·회전 안내·게이지 반응이 서로 맞습니다.
-- **실시간 모드:** OpenStreetMap 실제 지도를 GPS로 따라갑니다. 구글 서비스·API 키가 필요 없어 Pleos 차량에서도 동작합니다.
+- **실시간 모드:** OpenStreetMap 실제 지도를 GPS로 따라갑니다. 구글 서비스·API 키가 필요 없어 Pleos 차량에서도 동작합니다. 위치를 받기 전에는 서울시청 기준으로 지도를 보여주고, 차량 신호가 오지 않아도 GPS 위치로 지도가 움직입니다. 인터넷이 없으면 화면 위에 안내가 뜹니다.
 
 | 산길 연속 커브 | 고속도로 급차선변경 | 정체 가다 서다 |
 |---|---|---|
@@ -153,7 +153,8 @@ Vehicle·NaviHelper SDK는 Pleos 공개 Maven 저장소에서 받으며 인증 �
 ```bash
 ./gradlew :core-engine:test :app:testDebugUnitTest      # 자동 테스트 60개
 ./gradlew :core-engine:run --args="summary CHILD"        # 9개 시나리오 결과 표
-./gradlew :app:assembleDebug                             # APK 빌드
+./gradlew :app:assembleDebug                             # APK 빌드 (시연용: 첫 화면에서 시나리오 선택)
+./gradlew :app:assembleDebug -PdemoMode=false            # 실차용: 첫 화면 없이 실시간 데이터로 바로 주행 화면
 ```
 
 필요한 것: JDK 17 (Android Studio JBR이면 됩니다). Windows는 `gradlew.bat`을 씁니다. 에뮬레이터 실행과 실시간 시연(차량 신호 주입)은 [실행·시연 가이드](docs/guides/run-and-demo.md)를 보세요.

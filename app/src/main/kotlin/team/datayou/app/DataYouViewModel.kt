@@ -93,6 +93,8 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
     private var lastReaction: team.datayou.engine.model.Reaction? = null
     private var lastReactionWallMs = 0L
     @Volatile private var speedFromGps = false
+    @Volatile private var lastSampleWallMs = 0L
+    private var geoTicker: kotlinx.coroutines.Job? = null
     private val store = team.datayou.app.data.PassengerStore(app)
     /** 재생 모드: 동승자 팝업이 닫힐 때 재생을 시작한다 */
     private var pendingStart: (() -> Unit)? = null
@@ -164,6 +166,24 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
             locator?.stop()
             locator = LiveLocator(getApplication()).also { it.start() }
             src.start(onSample = ::onSample, onEnd = ::finishTrip)
+            // 차량 신호가 안 와도 GPS 위치로 지도를 움직인다 (샘플이 1.5초 이상 없을 때)
+            geoTicker?.cancel()
+            geoTicker = viewModelScope.launch {
+                while (true) {
+                    kotlinx.coroutines.delay(1000)
+                    if (System.currentTimeMillis() - lastSampleWallMs < 1500) continue
+                    val fix = locator?.currentFix() ?: continue
+                    _screen.update { d -> if (d is Screen.Driving) d.copy(geo = fix) else d }
+                }
+            }
+        }
+    }
+
+    init {
+        // 실차용 빌드: 첫 화면 없이 실시간 차량 데이터로 바로 주행 화면(동승자 팝업)을 연다
+        if (!BuildConfig.DEMO_MODE) {
+            _screen.value = Screen.Start(live = true)
+            startTrip()
         }
     }
 
@@ -186,6 +206,7 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
         nav.release()
         locator?.stop()
         locator = null
+        geoTicker?.cancel()
         val e = engine ?: return
         val label = (screen.value as? Screen.Driving)?.sourceLabel ?: ""
         // 실시간 모드는 Pleos 주행거리(Odometer)를 쓰고, 없으면 엔진의 속도 적분값을 쓴다
@@ -200,12 +221,15 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
         nav.release()
         locator?.stop()
         locator = null
+        geoTicker?.cancel()
         engine = null
-        _screen.value = Screen.Start()
+        _screen.value = Screen.Start(live = !BuildConfig.DEMO_MODE)
+        if (!BuildConfig.DEMO_MODE) startTrip()
     }
 
     // ── 엔진 연결 ──
     private fun onSample(raw: team.datayou.engine.model.VehicleSample) {
+        lastSampleWallMs = System.currentTimeMillis()
         val e = engine ?: return
         // 실시간 모드 대체 경로: 차량 속도가 0인데 GPS가 움직이면 GPS 속도, 핸들 각도가 없으면 GPS 방위
         val loc = locator
