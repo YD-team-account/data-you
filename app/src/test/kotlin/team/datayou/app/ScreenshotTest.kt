@@ -60,6 +60,7 @@ class ScreenshotTest {
         return Screen.Driving(
             sourceLabel = "가족 나들이",
             focus = u.focusPassenger,
+            riders = u.passengers,
             badge = u.badge,
             speedKmh = Math.round(u.speedMps * 3.6).toInt(),
             stopped = u.vehicleStopped,

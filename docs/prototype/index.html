@@ -67,6 +67,9 @@ h1, h2, h3 { text-wrap: balance; }
 .chip.hidden { opacity: 0; transform: translateY(.6em); pointer-events: none; }
 .avatar { width: 4em; height: 4em; border-radius: 50%; border: .32em solid var(--caution); background: #26313D; display: flex; align-items: center; justify-content: center; transition: border-color .4s; }
 .avatar svg { width: 2.5em; height: 2.5em; }
+.avatars { display: flex; gap: .45em; }
+.avatars.many .avatar { width: 3.3em; height: 3.3em; border-width: .28em; }
+.avatars.many .avatar svg { width: 2.05em; height: 2.05em; }
 /* 예측 안내: 주행 중에는 움직이지 않도록 깜빡임 대신 파란 테두리 (Android for Cars SA-1) */
 .chip.pulse { box-shadow: 0 0 0 3px #3D8BFF; }
 .badge { width: 2.75em; height: 2.75em; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--moment); }
@@ -195,7 +198,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
       <div class="speed"><b id="spd">0</b><span>km/h</span></div>
 
       <div class="chip hidden" id="chip" role="status" aria-live="polite">
-        <div class="avatar" id="avatar"></div>
+        <div class="avatars" id="avatars"></div>
         <div class="badge" id="badge"></div>
       </div>
 
@@ -223,7 +226,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
         </div>
         <div class="people" id="people"></div>
         <div class="start-row">
-          <span id="selCount">2명 선택됨 · 가장 힘든 동승자 한 명만 운전 화면에 표시돼요</span>
+          <span id="selCount">2명 선택됨 · 운전 화면에 모두 표시돼요</span>
           <button type="button" class="go" id="goBtn">이대로 출발</button>
         </div>
       </div>
@@ -290,7 +293,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
     <div class="panel">
       <h2>보는 법</h2>
       <ol class="how">
-        <li><b>출발 화면</b>에서 동승자를 고르고 '이대로 출발'을 누르세요. 여러 명이면 가장 힘든 한 명만 표시됩니다.</li>
+        <li><b>출발 화면</b>에서 동승자를 고르고 '이대로 출발'을 누르세요. 여러 명이면 모두의 얼굴이 각자 단계 색으로 표시됩니다.</li>
         <li><b>주행 중</b>에는 오른쪽 아래 아이콘과 원인 배지 1개만 뜹니다. 글자는 없고, 단계가 오를 때만 효과음이 1회 울립니다.</li>
         <li>게이지가 '주의' 이상인데 <b>다음 회전이 300m 안</b>이면, 내비 안내와 아이콘이 미리 강조됩니다(NaviHelper 예측).</li>
         <li><b>정차하면</b> 원인과 한 줄 코칭이 담긴 카드가 뜨고, Gleo가 읽어 줍니다. 정체는 운전자 탓으로 코칭하지 않습니다.</li>
@@ -378,7 +381,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
   var dist = 0, lastIdx = -1, cardUntil = -1, feedbackNote = "";
   var merged = [];
 
-  /* 선택한 동승자들의 타임라인을 합쳐 '가장 힘든 한 명'을 고른다 (엔진의 대표 동승자 규칙과 동일). */
+  /* 선택한 동승자들의 타임라인을 합친다. 칩에는 전원을 보여주고, 원인 배지·정차 카드는 가장 힘든 한 명 기준(엔진 규칙과 동일). */
   function buildMerged() {
     var keys = TYPES.map(function (x) { return x.k; }).filter(function (k) { return selected[k]; });
     var runs = keys.map(function (k) { return { k: k, r: DATA.scenarios[scenario][k] }; });
@@ -397,7 +400,9 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
         if (f[8] && x.k === best.k) cards.push({ msg: f[8], cause: f[9] });
       });
       var sound = runs.some(function (x) { return x.k === best.k && x.r.frames[i][6]; });
-      merged.push({ t: best.f[0], v: best.f[1], g: best.f[2], lv: best.f[3], b: best.f[4], stop: best.f[5], snd: sound, ev: Object.keys(evs), card: cards[0] || null, who: best.k });
+      var all = runs.map(function (x) { return { k: x.k, lv: x.r.frames[i][3] }; });
+      var worst = all.reduce(function (m, x) { return Math.max(m, x.lv); }, 0);
+      merged.push({ t: best.f[0], v: best.f[1], g: best.f[2], lv: worst, b: best.f[4], stop: best.f[5], snd: sound, ev: Object.keys(evs), card: cards[0] || null, who: best.k, all: all });
     }
     el("seek").max = String(n - 1);
     drawChart();
@@ -444,7 +449,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
     });
     el("people").innerHTML = html;
     var n = Object.keys(selected).filter(function (k) { return selected[k]; }).length;
-    el("selCount").textContent = n ? n + "명 선택됨 · 가장 힘든 동승자 한 명만 운전 화면에 표시돼요" : "동승자를 한 명 이상 골라주세요";
+    el("selCount").textContent = n ? n + "명 선택됨 · 운전 화면에 모두 표시돼요" : "동승자를 한 명 이상 골라주세요";
     el("goBtn").disabled = n === 0;
   }
   el("people").addEventListener("click", function (e) {
@@ -512,9 +517,12 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
     var chip = el("chip");
     chip.classList.toggle("hidden", f.lv === 0);
     chip.classList.toggle("pulse", pre);
-    var av = el("avatar");
-    av.style.borderColor = COLORS[f.lv];
-    av.innerHTML = face(f.who, f.lv);
+    /* 함께 탄 동승자 전원을 고른 순서대로 (자리 고정) */
+    var avs = el("avatars");
+    avs.classList.toggle("many", f.all.length > 2);
+    avs.innerHTML = f.all.map(function (x) {
+      return '<div class="avatar" style="border-color:' + COLORS[x.lv] + '">' + face(x.k, x.lv) + "</div>";
+    }).join("");
     if (f.b) {
       el("badge").style.display = "flex";
       el("badge").style.background = causeColor(f.b);
@@ -522,7 +530,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
     } else {
       el("badge").style.display = "none";
     }
-    chip.setAttribute("aria-label", nameOf(f.who) + " " + ["편안", "주의", "힘듦"][f.lv] + (f.b ? ", " + CAUSES[f.b].label : ""));
+    chip.setAttribute("aria-label", f.all.map(function (x) { return nameOf(x.k) + " " + ["편안", "주의", "힘듦"][x.lv]; }).join(", ") + (f.b ? ", " + CAUSES[f.b].label : ""));
 
     if (fire) {
       f.ev.forEach(function (e) {

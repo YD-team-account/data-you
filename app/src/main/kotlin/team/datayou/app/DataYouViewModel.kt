@@ -73,6 +73,8 @@ sealed interface Screen {
         val stopCardReplay: team.datayou.engine.model.ReactionKind? = null,
         /** 동승자 팝업 표시 여부 (출발 전에만, 움직이면 자동으로 닫힘) */
         val passengerPanel: Boolean = false,
+        /** 함께 탄 동승자 전원의 현재 상태 (칩에 모두 표시) */
+        val riders: List<PassengerState> = emptyList(),
         /** 고른 동승자. 비어 있으면 일반 동승자 기준 */
         val passengers: Set<PassengerType> = emptySet(),
     ) : Screen
@@ -114,7 +116,7 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
         store.save(next)
         // 출발 전(정차)이라 엔진 상태가 거의 없으므로 새 동승자로 다시 만든다
         engine = buildEngine(next)
-        _screen.update { s -> if (s is Screen.Driving) s.copy(passengers = next, focus = null) else s }
+        _screen.update { s -> if (s is Screen.Driving) s.copy(passengers = next, focus = null, riders = emptyList()) else s }
     }
 
     override fun closePassengerPanel() {
@@ -269,6 +271,7 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
             s.copy(
                 passengerPanel = s.passengerPanel && !leaving,
                 focus = u.focusPassenger,
+                riders = u.passengers,
                 badge = u.badge,
                 speedKmh = Math.round(u.speedMps * 3.6).toInt(),
                 stopped = u.vehicleStopped,
