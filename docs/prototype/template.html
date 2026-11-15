@@ -476,14 +476,24 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
       o.start(); o.stop(actx.currentTime + 0.55);
     } catch (err) { /* 오디오를 쓸 수 없는 환경 */ }
   }
-  function speak(text) {
-    if (!el("soundOn").checked || speed > 5) return;
+  function speak(text, always) {
+    if (!el("soundOn").checked || (speed > 5 && !always)) return;
     try {
       var u = new SpeechSynthesisUtterance(text.replace(/·/g, ","));
       u.lang = "ko-KR"; u.rate = 1.05;
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(u);
     } catch (err) { /* 음성 합성을 쓸 수 없는 환경 */ }
+  }
+
+  /* 단계가 오를 때 읽어 줄 음성: 한 유형만 불편하면 그 유형, 여럿이면 "동승자들이" (앱 AlertSpeech와 같은 규칙) */
+  function alertSpeech(all) {
+    var uneasy = all.filter(function (x) { return x.lv > 0; });
+    if (!uneasy.length) return null;
+    if (uneasy.length > 1) return "동승자들이 불편해해요";
+    var w = uneasy[0].k === "SENSITIVE_ADULT" ? "멀미 민감 동승자" : nameOf(uneasy[0].k), c = w.charCodeAt(w.length - 1);
+    var josa = (c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28) ? "이" : "가";
+    return w + josa + " 불편해해요";
   }
 
   /* ── 로그 ── */
@@ -537,7 +547,12 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
         var c = CAUSES[e];
         log(f.t, c.actionable ? "" : "sit", "이벤트  " + c.label + (c.actionable ? "" : " (운전자 탓 아님)"));
       });
-      if (f.snd) { beep(f.lv); log(f.t, "snd", "♪ 효과음 · " + nameOf(f.who) + " " + ["편안", "주의", "힘듦"][f.lv] + " 단계로 상승 (게이지 " + f.g + ")"); }
+      if (f.snd) {
+        beep(f.lv);
+        var say = alertSpeech(f.all);
+        if (say) setTimeout(function () { speak(say, true); }, 450);
+        log(f.t, "snd", "♪ 효과음 + 음성 \u201C" + (say || "") + "\u201D · " + nameOf(f.who) + " " + ["편안", "주의", "힘듦"][f.lv] + " 단계로 상승 (게이지 " + f.g + ")");
+      }
       if (f.card) showCard(f, idx);
       if (pre && !render.preShown) { log(f.t, "snd", "예측 안내 · 300m 앞 회전, 미리 감속 권장"); }
       render.preShown = pre;

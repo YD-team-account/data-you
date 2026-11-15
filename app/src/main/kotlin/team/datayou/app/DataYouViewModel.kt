@@ -250,7 +250,11 @@ class DataYouViewModel(app: Application) : AndroidViewModel(app), DataYouActions
         val tbt = nav.update(sample)
         val pre = tbt != null && !u.vehicleStopped && e.shouldPreAlert(tbt.distanceM, tbt.isTurn)
 
-        if (u.playAlertSound) beep(u.focusPassenger.level)
+        if (u.playAlertSound) {
+            beep(u.focusPassenger.level)
+            // 한 유형만 불편하면 그 유형을, 여럿이면 "동승자들이" 로 짧게 읽어 준다
+            AlertSpeech.of(u.passengers)?.let(::speak)
+        }
 
         _screen.update { s ->
             if (s !is Screen.Driving) return@update s
