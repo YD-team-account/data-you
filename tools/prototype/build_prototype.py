@@ -12,6 +12,14 @@ template = (proto / "template.html").read_text(encoding="utf-8")
 timeline = (proto / "timeline.json").read_text(encoding="utf-8")
 # </script> 가 JSON 안에 들어가도 스크립트 태그가 끊기지 않도록
 timeline = timeline.replace("</", "<\\/")
-out = template.replace("__TIMELINE__", timeline)
+import json, sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import routes
+data = json.loads((proto / "timeline.json").read_text(encoding="utf-8"))
+route_map = {}
+for key, runs in data["scenarios"].items():
+    frames = next(iter(runs.values()))["frames"]
+    route_map[key] = routes.build(root / "sample-data" / f"{key}.csv", [f[0] for f in frames])
+out = template.replace("__TIMELINE__", timeline).replace("__ROUTES__", json.dumps(route_map, separators=(",", ":")))
 (proto / "index.html").write_text(out, encoding="utf-8")
 print(f"wrote {proto / 'index.html'} ({len(out) // 1024}KB)")

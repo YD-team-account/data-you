@@ -67,8 +67,8 @@ h1, h2, h3 { text-wrap: balance; }
 .chip.hidden { opacity: 0; transform: translateY(.6em); pointer-events: none; }
 .avatar { width: 4em; height: 4em; border-radius: 50%; border: .32em solid var(--caution); background: #26313D; display: flex; align-items: center; justify-content: center; transition: border-color .4s; }
 .avatar svg { width: 2.5em; height: 2.5em; }
-.chip.pulse .avatar { animation: pulse 1.2s ease-in-out infinite; }
-@keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(242,179,61,.0); } 50% { box-shadow: 0 0 0 .5em rgba(242,179,61,.35); } }
+/* 예측 안내: 주행 중에는 움직이지 않도록 깜빡임 대신 파란 테두리 (Android for Cars SA-1) */
+.chip.pulse { box-shadow: 0 0 0 3px #3D8BFF; }
 .badge { width: 2.75em; height: 2.75em; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--moment); }
 .badge svg { width: 1.6em; height: 1.6em; }
 
@@ -179,17 +179,17 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
         <svg viewBox="0 0 1280 480" preserveAspectRatio="xMidYMid slice">
           <rect width="1280" height="480" fill="#121820"></rect>
           <g id="mapMove">
-            <path id="roads" d="" stroke="#232D38" stroke-width="34" fill="none" stroke-linecap="round"></path>
-            <path id="side" d="" stroke="#1B232C" stroke-width="18" fill="none"></path>
-            <path id="route" d="" stroke="#3D8BFF" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+            <path id="side" d="" stroke="#1B232C" stroke-width="12" fill="none" stroke-linecap="round"></path>
+            <path id="roads" d="" stroke="#232D38" stroke-width="20" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+            <path id="route" d="" stroke="#3D8BFF" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
           </g>
-          <circle cx="420" cy="300" r="17" fill="#3D8BFF"></circle>
-          <path d="M432 300 L410 290 L414 300 L410 310 Z" fill="#FFFFFF"></path>
+          <circle cx="640" cy="330" r="17" fill="#3D8BFF"></circle>
+          <path d="M640 318 L650 340 L640 335 L630 340 Z" fill="#FFFFFF"></path>
         </svg>
       </div>
       <div class="tbt" id="tbt">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#F2F4F6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:2.2em;height:2.2em"><path d="M7 20V11a4 4 0 0 1 4-4h8"></path><path d="M15 3l4 4-4 4"></path></svg>
-        <div><div class="dist" id="tbtDist">1200m</div><div class="road">우회전 · 강변로</div></div>
+        <svg id="tbtIcon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#F2F4F6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:2.2em;height:2.2em"><path d="M7 20V11a4 4 0 0 1 4-4h8"></path><path d="M15 3l4 4-4 4"></path></svg>
+        <div><div class="dist" id="tbtDist">1200m</div><div class="road" id="tbtRoad">우회전</div></div>
       </div>
       <div class="stopped-pill" id="stoppedPill"><i></i><span>정차 중 · 0 km/h</span></div>
       <div class="speed"><b id="spd">0</b><span>km/h</span></div>
@@ -302,11 +302,14 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
 </main>
 
 <script type="application/json" id="timeline">__TIMELINE__</script>
+<script type="application/json" id="routes">__ROUTES__</script>
 <script>
 (function () {
   "use strict";
   var DATA = JSON.parse(document.getElementById("timeline").textContent);
   var CAUSES = DATA.causes;
+  /* 시나리오별 실제 경로 (녹화 CSV의 속도·요레이트로 복원, tools/prototype/routes.py) */
+  var ROUTES = JSON.parse(document.getElementById("routes").textContent);
 
   var SCEN = [
     ["family_trip", "가족 나들이 (시내 → 고속도로 → 강변 커브 → 정체)"],
@@ -400,19 +403,34 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
     drawChart();
   }
 
-  /* ── 지도 (주행거리만큼 왼쪽으로 흐르는 추상 도로) ── */
+  /* ── 지도: 주행 데이터로 복원한 실제 경로를 따라 이동 (진행 방향이 위) ── */
+  var MAP_SCALE = 1.3;      // 화면 단위/미터
+  var routeS = 0;           // 현재 누적 거리(m)
   function buildMap() {
-    var d = "M-200 300", s = "", x = -200;
-    for (var i = 0; i < 40; i++) {
-      x += 160;
-      var y = 300 + Math.sin(i * 0.9) * 40;
-      d += " L" + x + " " + y.toFixed(0);
-      if (i % 3 === 0) s += " M" + x + " " + (y - 20).toFixed(0) + " L" + (x + 60) + " -40";
-      if (i % 4 === 1) s += " M" + x + " " + (y + 20).toFixed(0) + " L" + (x - 40) + " 520";
-    }
-    el("roads").setAttribute("d", d);
-    el("route").setAttribute("d", d);
-    el("side").setAttribute("d", s);
+    var r = ROUTES[scenario];
+    el("roads").setAttribute("d", r.road);
+    el("route").setAttribute("d", r.road);
+    el("side").setAttribute("d", r.side);
+  }
+  function placeMap(tf) {
+    var pose = ROUTES[scenario].pose, n = pose.length;
+    var i = Math.max(0, Math.min(n - 1, Math.floor(tf))), j = Math.min(n - 1, i + 1), a = Math.min(1, Math.max(0, tf - i));
+    var p = pose[i], q = pose[j];
+    var x = p[0] + (q[0] - p[0]) * a, y = p[1] + (q[1] - p[1]) * a;
+    var dh = q[2] - p[2]; while (dh > 180) dh -= 360; while (dh < -180) dh += 360;
+    var h = p[2] + dh * a;
+    routeS = p[3] + (q[3] - p[3]) * a;
+    el("mapMove").setAttribute("transform",
+      "translate(640 330) rotate(" + (h - 90).toFixed(2) + ") scale(" + MAP_SCALE + ") translate(" + (-x).toFixed(1) + " " + y.toFixed(1) + ")");
+  }
+  var ARROW_RIGHT = '<path d="M7 20V11a4 4 0 0 1 4-4h8"></path><path d="M15 3l4 4-4 4"></path>';
+  var ARROW_LEFT = '<path d="M17 20V11a4 4 0 0 0-4-4H5"></path><path d="M9 3L5 7l4 4"></path>';
+  var ARROW_UP = '<path d="M12 21V4"></path><path d="M6 10l6-6 6 6"></path>';
+  /* 다음 회전까지 거리. 없으면 null */
+  function nextTurn() {
+    var r = ROUTES[scenario];
+    for (var k = 0; k < r.turns.length; k++) if (r.turns[k][0] > routeS + 5) return { d: r.turns[k][0] - routeS, left: r.turns[k][1] > 0 };
+    return null;
   }
 
   /* ── 출발 화면 ── */
@@ -483,9 +501,12 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
     el("stoppedPill").style.display = stopped ? "flex" : "none";
     el("tbt").style.display = stopped ? "none" : "flex";
 
-    var tb = 1200 - (dist % 1200);
-    el("tbtDist").textContent = Math.round(tb / 10) * 10 + "m";
-    var pre = f.lv >= 1 && tb <= 300 && !stopped;
+    var turn = nextTurn();
+    var tb = turn ? turn.d : Math.max(0, ROUTES[scenario].len - routeS);
+    el("tbtDist").textContent = tb >= 1000 ? (tb / 1000).toFixed(1) + "km" : Math.round(tb / 10) * 10 + "m";
+    el("tbtRoad").textContent = turn ? (turn.left ? "좌회전" : "우회전") : "직진";
+    el("tbtIcon").innerHTML = turn ? (turn.left ? ARROW_LEFT : ARROW_RIGHT) : ARROW_UP;
+    var pre = !!turn && f.lv >= 1 && tb <= 300 && !stopped;
     el("tbt").classList.toggle("pre", pre);
 
     var chip = el("chip");
@@ -610,8 +631,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
     t = Math.min(n - 1, t + dt * speed);
     var idx = Math.floor(t);
     var f = merged[idx];
-    dist += (f.v / 3.6) * dt * speed;
-    el("mapMove").setAttribute("transform", "translate(" + (-(dist * 0.6) % 640).toFixed(1) + " 0)");
+    placeMap(t);
     for (var i = idxBefore + 1; i <= idx; i++) render(i, true);
     if (idx === idxBefore) render(idx, false);
     el("seek").value = String(idx);
@@ -622,7 +642,8 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
   }
   function reset(toStart) {
     setPlaying(false);
-    t = 0; dist = 0; hideCard();
+    t = 0; hideCard();
+    buildMap(); placeMap(0);
     el("log").innerHTML = "";
     el("reportView").classList.remove("show");
     buildMerged();
@@ -656,6 +677,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
     el("reportView").classList.remove("show");
     if (phase === "report") phase = "drive";
     t = Number(this.value); hideCard();
+    placeMap(t);
     render(Math.floor(t), false);
     el("clock").textContent = fmtT(merged[Math.floor(t)].t) + " / " + fmtT(merged[merged.length - 1].t);
     drawChart();
