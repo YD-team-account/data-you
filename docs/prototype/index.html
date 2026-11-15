@@ -527,10 +527,11 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
     var chip = el("chip");
     chip.classList.toggle("hidden", f.lv === 0);
     chip.classList.toggle("pulse", pre);
-    /* 함께 탄 동승자 전원을 고른 순서대로 (자리 고정) */
+    /* 불편한(주의·힘듦) 동승자만 고른 순서대로. 편안한 동승자는 띄우지 않는다 */
+    var uneasy = f.all.filter(function (x) { return x.lv > 0; });
     var avs = el("avatars");
-    avs.classList.toggle("many", f.all.length > 2);
-    avs.innerHTML = f.all.map(function (x) {
+    avs.classList.toggle("many", uneasy.length > 2);
+    avs.innerHTML = uneasy.map(function (x) {
       return '<div class="avatar" style="border-color:' + COLORS[x.lv] + '">' + face(x.k, x.lv) + "</div>";
     }).join("");
     if (f.b) {
@@ -540,7 +541,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
     } else {
       el("badge").style.display = "none";
     }
-    chip.setAttribute("aria-label", f.all.map(function (x) { return nameOf(x.k) + " " + ["편안", "주의", "힘듦"][x.lv]; }).join(", ") + (f.b ? ", " + CAUSES[f.b].label : ""));
+    chip.setAttribute("aria-label", uneasy.map(function (x) { return nameOf(x.k) + " " + ["편안", "주의", "힘듦"][x.lv]; }).join(", ") + (f.b ? ", " + CAUSES[f.b].label : ""));
 
     if (fire) {
       f.ev.forEach(function (e) {

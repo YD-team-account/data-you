@@ -106,12 +106,15 @@ fun DriveScreen(s: Screen.Driving, vm: DataYouActions) {
             Text("km/h", color = Palette.muted, fontSize = 14.sp, modifier = Modifier.padding(bottom = 4.dp))
         }
 
-        // 다 타유 칩: 주행 중 유일한 표시. 함께 탄 동승자 전원을 한 줄로 보여주고, 모두 편안하면 숨김.
+        // 다 타유 칩: 주행 중 유일한 표시. 불편한(주의·힘듦) 동승자만 고른 순서대로 보여주고, 모두 편안하면 숨김.
+        // 단, 반응 직후나 휴식 표정일 때는 대표 동승자 한 명을 보여준다.
         val focus = s.focus
-        val riders = s.riders.ifEmpty { listOfNotNull(focus) }
+        val all = s.riders.ifEmpty { listOfNotNull(focus) }
+        val uneasy = all.filter { it.level != GaugeLevel.COMFORT }
+        val riders = uneasy.ifEmpty { listOfNotNull(focus) }
         // 편안 단계에서도 반응 직후나 부드러운 주행(휴식 표정) 중에는 보인다
         AnimatedVisibility(
-            visible = focus != null && (riders.any { it.level != GaugeLevel.COMFORT } || s.reactionShowing || s.resting),
+            visible = focus != null && (uneasy.isNotEmpty() || s.reactionShowing || s.resting),
             modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
             enter = fadeIn() + slideInVertically { it / 3 },
             exit = fadeOut(),
